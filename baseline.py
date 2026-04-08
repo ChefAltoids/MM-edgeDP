@@ -14,7 +14,7 @@ from torch_geometric.nn import GCNConv
 from torch_geometric.transforms import ToUndirected
 
 
-def set_seed(seed: int = 42) -> None:
+def set_seed(seed: int = 175) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
