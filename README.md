@@ -3,7 +3,7 @@
 First, clone the repo 
 '''bash 
 git clone https://github.com/ChefAltoids/Clinical-DP
-''
+'''
 
 Run these commands from the `final_project/Clinical-DP` directory.
 
