@@ -1,0 +1,16 @@
+{
+  "extends": [
+    "configs/experiments/paper_v1_defensible.json"
+  ],
+  "run": {
+    "name": "epsilon_grid_small"
+  },
+  "sweep": {
+    "seeds": [42],
+    "epsilons": [0.5, 1.0]
+  },
+  "tasks": {
+    "run_logreg": false,
+    "run_gcn": false
+  }
+}

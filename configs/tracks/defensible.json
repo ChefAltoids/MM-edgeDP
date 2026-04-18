@@ -1,0 +1,13 @@
+{
+  "track": {
+    "name": "defensible"
+  },
+  "mechanism": {
+    "query_mode": "one_hop",
+    "query_normalization": "none"
+  },
+  "privacy": {
+    "claim": "defensible",
+    "utility_sensitivity": 1.0
+  }
+}

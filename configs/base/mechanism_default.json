@@ -1,0 +1,16 @@
+{
+  "mechanism": {
+    "query_mode": "one_hop",
+    "query_normalization": "none",
+    "query_hops": 1,
+    "label_conditioning": true,
+    "dict_per_class": 32,
+    "max_proto_nodes": 64,
+    "min_class_fraction": 1.0
+  },
+  "privacy": {
+    "claim": "defensible",
+    "epsilon": 1.0,
+    "utility_sensitivity": 1.0
+  }
+}

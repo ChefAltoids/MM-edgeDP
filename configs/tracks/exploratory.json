@@ -1,0 +1,14 @@
+{
+  "track": {
+    "name": "exploratory"
+  },
+  "mechanism": {
+    "query_mode": "two_hop_concat",
+    "query_normalization": "l2_row",
+    "query_hops": 2
+  },
+  "privacy": {
+    "claim": "exploratory",
+    "utility_sensitivity": 2.0
+  }
+}

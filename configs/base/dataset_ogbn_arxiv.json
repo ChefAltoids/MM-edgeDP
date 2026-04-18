@@ -1,0 +1,13 @@
+{
+  "dataset": {
+    "name": "ogbn-arxiv",
+    "root": "data/ogb",
+    "split_mode": "official_ogb"
+  },
+  "split": {
+    "public_frac": 0.02,
+    "val_frac": 0.02,
+    "max_private_nodes": 30000,
+    "max_val_nodes": 3000
+  }
+}

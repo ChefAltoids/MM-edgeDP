@@ -1,0 +1,54 @@
+{
+  "protocol_name": "paper_default_v1",
+  "dataset": {
+    "name": "ogbn-arxiv",
+    "split_mode": "official_ogb",
+    "public_private_partition_rule": "public_from_train_stratified",
+    "public_frac": 0.02
+  },
+  "caps": {
+    "max_private_nodes": 6000,
+    "max_val_nodes": 3000,
+    "max_test_nodes": 3000
+  },
+  "mechanism": {
+    "query_mode": "one_hop",
+    "query_normalization": "none",
+    "query_clip_norm": 1.0,
+    "walk_hops": 1,
+    "query_hops": 1,
+    "dict_per_class": 32,
+    "max_proto_nodes": 64,
+    "min_class_fraction": 1.0,
+    "label_conditioning": true
+  },
+  "downstream_budget": {
+    "hidden_channels": 32,
+    "epochs": 10,
+    "batch_size": 64,
+    "lr": 0.01,
+    "feature_jitter_std": 0.03,
+    "edge_dropout_p": 0.1
+  },
+  "tracks": {
+    "defensible": {
+      "privacy_claim": "defensible",
+      "query_mode": "one_hop",
+      "query_normalization": "none"
+    },
+    "exploratory": {
+      "privacy_claim": "exploratory",
+      "query_mode": "two_hop_concat",
+      "query_normalization": "l2_row"
+    }
+  },
+  "baseline_labels": {
+    "baseline_clean_upper_bound": "non_private_upper_bound",
+    "baseline_gaussian_practical": "practical_not_theorem_tight",
+    "baseline_rr_practical": "practical_not_theorem_tight"
+  },
+  "default_launch": {
+    "seeds": [42, 43, 44],
+    "epsilons": [0.5, 1.0, 4.0]
+  }
+}

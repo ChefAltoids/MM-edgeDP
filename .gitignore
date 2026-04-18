@@ -26,3 +26,7 @@ env/
 
 # Project data
 data/
+
+# Generated run artifacts
+outputs/*
+!outputs/.gitkeep

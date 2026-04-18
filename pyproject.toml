@@ -3,20 +3,38 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "clinical-dp"
+name = "mm-edgedp"
 version = "0.1.0"
-description = "Baseline models for the Clinical-DP project"
+description = "Config-driven experiment runners for the MM-edgeDP project"
 requires-python = ">=3.9"
 dependencies = [
   "numpy>=1.24",
-  "ogb>=1.3.6",
+  "pandas>=2.0",
   "scikit-learn>=1.3",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+train = [
+  "ogb>=1.3.6",
   "torch>=2.2",
   "torch-geometric>=2.5",
 ]
+dev = [
+  "jupyter>=1.0",
+  "matplotlib>=3.8",
+  "pytest>=8.0",
+  "seaborn>=0.13",
+]
 
 [project.scripts]
-clinical-dp-baseline = "baseline:main"
+mm-edgedp-baseline = "baseline:main"
+mm-edgedp-run = "scripts.run_experiment:main"
+mm-edgedp-sweep = "scripts.run_sweep:main"
 
 [tool.setuptools]
 py-modules = ["baseline"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mm_edgedp*", "scripts*"]

@@ -1,0 +1,20 @@
+{
+  "tasks": {
+    "run_logreg": true,
+    "run_gcn": true
+  },
+  "model": {
+    "hidden_channels": 256,
+    "dropout": 0.5
+  },
+  "train": {
+    "epochs": 200,
+    "batch_size": 64,
+    "lr": 0.01,
+    "weight_decay": 0.0005
+  },
+  "logging": {
+    "save_metrics": true,
+    "verbosity": 1
+  }
+}
