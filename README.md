@@ -20,6 +20,12 @@ You should run commands **from the repo root** (the folder that contains `pyproj
 cd MM-edgeDP
 ```
 
+- In Google Colab, the equivalent is:
+
+```bash
+%cd MM-edgeDP
+```
+
 - If you're inside the course workspace that contains many homeworks, it may look like:
 
 ```bash
@@ -28,61 +34,13 @@ cd final_project/MM-edgeDP
 
 You can sanity-check you're in the right place by verifying you can see `configs/`, `scripts/`, and `mm_edgedp/`.
 
-## 2) Quickstart (two levels)
+## 2) Quickstart (Google Colab + macOS)
 
-Recommended (keeps installs isolated):
+This project is designed to be easy to run in **Google Colab** (most partners) and on **macOS locally** (optional).
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-```
+### Google Colab quickstart (recommended)
 
-On Windows (PowerShell), activation looks like:
-
-```bash
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-```
-
-### A. Fast sanity check (no ML installs)
-
-This runs the config system and creates an output folder, but **does not download data or train models**.
-
-```bash
-python -m pip install .
-
-python -m scripts.run_experiment \
-	--config configs/experiments/paper_v1_defensible.json \
-	--dry-run
-```
-
-What you should see:
-
-- A printed JSON result.
-- A new folder like `outputs/paper_v1_defensible/` containing `resolved_config.json` (and a placeholder path for `metrics.json`).
-
-### B. Actually run the baseline (downloads data + trains)
-
-This installs the heavier dependencies and runs the baseline tasks.
-
-```bash
-python -m pip install ".[train]"
-
-python -m scripts.run_experiment \
-	--config configs/experiments/paper_v1_defensible.json \
-	--set train.epochs=5
-```
-
-Notes:
-
-- The dataset `ogbn-arxiv` will download/cache under `data/` (see the config field `dataset.root`).
-- Training uses GPU if available; otherwise CPU.
-
-### Colab quickstart
-
-In Colab, you can either do a dry run (easy) or try the full training install.
+In Colab, you can do a dry run (easy) or try the full training install.
 
 Colab tips (important):
 
@@ -157,6 +115,35 @@ If `torch-geometric` fails to install in Colab, that’s a common packaging issu
 
 - You can still do `--dry-run` work.
 - For full training, follow the official PyG install instructions for your exact Torch + CUDA version: https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
+
+### macOS local quickstart (optional)
+
+Recommended (keeps installs isolated):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+Fast sanity check (no ML installs):
+
+```bash
+python -m pip install .
+python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --dry-run
+```
+
+Run the baseline (downloads data + trains):
+
+```bash
+python -m pip install ".[train]"
+python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --set train.epochs=5
+```
+
+Notes:
+
+- The dataset `ogbn-arxiv` will download/cache under `data/` (see the config field `dataset.root`).
+- Training uses GPU if available; otherwise CPU.
 
 ## 3) Folder layout (what things are)
 
