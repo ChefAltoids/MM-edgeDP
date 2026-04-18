@@ -100,17 +100,6 @@ Saving results from Colab:
 !zip -r outputs.zip outputs
 ```
 
-- Or, mount Google Drive and copy `outputs/` there.
-
-Example:
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-!mkdir -p /content/drive/MyDrive/mm-edgedp-runs
-!cp -r outputs /content/drive/MyDrive/mm-edgedp-runs/
-```
-
 If `torch-geometric` fails to install in Colab, that’s a common packaging issue (it depends on extra compiled wheels). In that case:
 
 - You can still do `--dry-run` work.
@@ -286,21 +275,74 @@ Run it:
 python -m scripts.run_experiment --config configs/experiments/my_first_ablation.json
 ```
 
-### “I have a new algorithm / new mechanism” (code change)
+### “I have a new Edge-DP method” (code change)
 
-Implement new logic in `mm_edgedp/`, then wire it into `mm_edgedp/runner.py`.
+This is the path for **new Edge-DP methods** you want to compare against the baseline (for example: aggregation perturbation, randomized response on edges, degree-based mechanisms, etc.).
+
+Right now, the runner **records** `privacy` / `mechanism` settings in `resolved_config.json`, but it does not automatically apply them. If you want a new DP method to actually affect results, you will need to implement it and wire it into the run.
 
 Practical starting points:
 
-- `mm_edgedp/runner.py` is the orchestrator: it reads the config and decides what to run.
+- `mm_edgedp/runner.py` is the orchestrator: it loads data and runs the baseline tasks.
 - `baseline.py` contains the current baseline training/eval code.
 
-Suggested pattern:
+Suggested contribution pattern (beginner-friendly):
 
-1. Add a new module under `mm_edgedp/` (e.g. `mm_edgedp/my_method.py`).
-2. Add a config flag (e.g. `method.name`) so you can select it from JSON.
-3. Update `mm_edgedp/runner.py` to branch on that flag.
-4. Make a new config in `configs/experiments/` that turns your method on.
+1. Create a new module under `mm_edgedp/` for your method (e.g. `mm_edgedp/aggregation_perturbation.py`).
+2. Pick a simple config switch so experiments can select methods without editing Python:
+	 - Recommended: `method.name` (string) + a method-specific params section.
+3. Update `mm_edgedp/runner.py` to branch on `method.name` and apply your method.
+	 - Common place to apply edge-DP methods: **after loading the graph** but **before** running `run_logreg` / `train_gcn`.
+4. Add a new experiment config in `configs/experiments/` that turns your method on.
+5. Compare against baseline by running two configs with the same `run.seed` and the same `privacy.epsilon`.
+
+#### Example: wiring in an “aggregation perturbation” method
+
+Create an experiment config like `configs/experiments/agg_perturb_example.json`:
+
+```json
+{
+	"extends": ["configs/experiments/paper_v1_defensible.json"],
+	"run": {"name": "agg_perturb_example"},
+	"method": {
+		"name": "aggregation_perturbation"
+	},
+	"privacy": {
+		"epsilon": 1.0
+	},
+	"aggregation_perturbation": {
+		"some_parameter": 0.1
+	}
+}
+```
+
+Then (after implementing the method + runner hook), run:
+
+```bash
+python -m scripts.run_experiment --config configs/experiments/agg_perturb_example.json
+```
+
+To do an epsilon comparison, you can either:
+
+- run multiple commands with `--set privacy.epsilon=...`, or
+- create a sweep config under `configs/sweeps/` that extends your method experiment and sets `sweep.epsilons`.
+
+#### Contributing via GitHub (recommended)
+
+If you want your method/ablation to be easy for others to reproduce:
+
+1. Fork the repo on GitHub (or create a branch if you have write access).
+2. Add code under `mm_edgedp/` and add one or more configs under `configs/experiments/`.
+3. Run a quick check (in Colab or macOS):
+
+```bash
+python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --dry-run
+```
+
+4. Open a pull request and describe:
+	- what method you implemented (e.g., “aggregation perturbation for edge-DP”)
+	- which config(s) to run
+	- what metrics/output file to look at (`outputs/<run_name>/metrics.json`)
 
 ### “Where should I do new work?”
 
