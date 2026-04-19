@@ -1,0 +1,70 @@
+{
+  "name": "query_norm_rescue_v1",
+  "notes": "Small matched-budget ablation for query normalization rescue strategies.",
+  "base_config": {
+    "dataset_name": "ogbn-arxiv",
+    "seed": 42,
+    "public_frac": 0.02,
+    "val_frac": 0.02,
+    "max_private_nodes": 6000,
+    "max_val_nodes": 3000,
+    "dict_per_class": 32,
+    "walk_hops": 1,
+    "query_hops": 1,
+    "query_mode": "one_hop",
+    "label_conditioning": true,
+    "min_class_fraction": 1.0,
+    "max_proto_nodes": 64,
+    "epochs": 10,
+    "batch_size": 64,
+    "lr": 0.01,
+    "feature_jitter_std": 0.03,
+    "edge_dropout_p": 0.1
+  },
+  "epsilons": [
+    1.0,
+    4.0
+  ],
+  "seeds": [
+    42
+  ],
+  "arms": [
+    {
+      "name": "none",
+      "query_normalization": "none",
+      "query_clip_tau": null
+    },
+    {
+      "name": "l2_row",
+      "query_normalization": "l2_row",
+      "query_clip_tau": null
+    },
+    {
+      "name": "clip_l2_tau_0p03",
+      "query_normalization": "clip_l2",
+      "query_clip_tau": 0.03
+    },
+    {
+      "name": "clip_l2_tau_0p10",
+      "query_normalization": "clip_l2",
+      "query_clip_tau": 0.1
+    },
+    {
+      "name": "soft_l2_tau_0p03",
+      "query_normalization": "soft_l2",
+      "query_clip_tau": 0.03
+    },
+    {
+      "name": "soft_l2_tau_0p10",
+      "query_normalization": "soft_l2",
+      "query_clip_tau": 0.1
+    }
+  ],
+  "extended_tau_grid": [
+    0.01,
+    0.03,
+    0.05,
+    0.1,
+    0.2
+  ]
+}
