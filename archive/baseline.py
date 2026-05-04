@@ -71,7 +71,6 @@ def run_logistic_regression(data, split_idx):
 
     clf = LogisticRegression(
         max_iter=1000,
-        multi_class="multinomial",
         solver="lbfgs",
         n_jobs=-1,
         verbose=1,

@@ -28,5 +28,4 @@ env/
 data/
 
 # Generated run artifacts
-outputs/*
-!outputs/.gitkeep
+outputs/.gitkeep

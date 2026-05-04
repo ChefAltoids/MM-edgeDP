@@ -1,0 +1,65 @@
+{
+  "dataset": {
+    "name": "ogbn-arxiv",
+    "root": "data/ogb",
+    "split_mode": "official_ogb"
+  },
+  "logging": {
+    "save_metrics": true,
+    "verbosity": 1
+  },
+  "mechanism": {
+    "dict_per_class": 32,
+    "label_conditioning": true,
+    "max_proto_nodes": 64,
+    "min_class_fraction": 1.0,
+    "query_hops": 1,
+    "query_mode": "one_hop",
+    "query_normalization": "none"
+  },
+  "model": {
+    "dropout": 0.5,
+    "hidden_channels": 256
+  },
+  "privacy": {
+    "claim": "defensible",
+    "epsilon": 1.0,
+    "utility_sensitivity": 1.0
+  },
+  "run": {
+    "name": "paper_v1_defensible",
+    "output_dir": "outputs",
+    "seed": 42
+  },
+  "split": {
+    "max_private_nodes": 30000,
+    "max_val_nodes": 3000,
+    "public_frac": 0.02,
+    "val_frac": 0.02
+  },
+  "sweep": {
+    "epsilons": [
+      0.5,
+      1.0,
+      4.0
+    ],
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  "tasks": {
+    "run_gcn": true,
+    "run_logreg": true
+  },
+  "track": {
+    "name": "defensible"
+  },
+  "train": {
+    "batch_size": 64,
+    "epochs": 50,
+    "lr": 0.01,
+    "weight_decay": 0.0005
+  }
+}

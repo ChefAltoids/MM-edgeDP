@@ -1,0 +1,10 @@
+{
+  "description": "Phase 2: epsilon sweep on Cora. Use best dict_per_class from Phase 1. Goal: measure privacy-utility tradeoff curve.",
+  "grid": {
+    "dataset":        ["Cora"],
+    "epsilon":        [0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
+    "public_frac":    [0.20],
+    "dict_per_class": [128],
+    "seed":           [0, 1, 2]
+  }
+}

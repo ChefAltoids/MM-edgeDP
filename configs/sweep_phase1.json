@@ -1,0 +1,10 @@
+{
+  "description": "Phase 1: public_frac x dict_per_class grid on Cora (epsilon=1.0). Goal: find which dictionary size works across different public data budgets.",
+  "grid": {
+    "dataset":        ["Cora"],
+    "epsilon":        [1.0],
+    "public_frac":    [0.02, 0.05, 0.20],
+    "dict_per_class": [4, 16, 64, 128],
+    "seed":           [0, 1, 2]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "dataset": {
+    "name": "ogbn-arxiv",
+    "num_classes": 40,
+    "num_edges": 2315598,
+    "num_features": 128,
+    "num_nodes": 169343
+  },
+  "metrics": {
+    "gcn": {
+      "test_acc": 0.6414624611649486,
+      "train_acc": 0.6394255616278686,
+      "valid_acc": 0.6493170911775563
+    },
+    "logreg": {
+      "test_acc": 0.5250498940394626,
+      "train_acc": 0.5497410408946459,
+      "valid_acc": 0.549917782475922
+    }
+  },
+  "run": {
+    "device": "cpu",
+    "name": "paper_v1_defensible",
+    "seed": 42,
+    "timestamp_utc": "2026-04-23T18:34:05.723035+00:00"
+  }
+}

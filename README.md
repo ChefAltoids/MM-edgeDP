@@ -1,377 +1,212 @@
-# MM-edgeDP (Beginner-Friendly)
+# MM-EdgeDP
 
-MM-edgeDP is a small, script-first project that lets you run (and later extend) experiments from **JSON config files** instead of editing notebook cells.
+**MM-EdgeDP** is an edge-level differentially private node classification method for graphs. It achieves pure ε-DP on edges by combining a *public prototype dictionary* with the *exponential mechanism*: instead of adding Gaussian noise to aggregated features, the mechanism selects a prototype subgraph from a public dictionary in a way that is provably ε-differentially private with respect to the private graph structure.
 
-If you're new to ML codebases: that's totally fine — the goal here is that you can clone the repo, run a “dry run” without installing heavy ML packages, and then gradually turn on training once you’re ready.
+Historical KL-perturbation notebooks (`kl_perturb.ipynb`, `KL_perturb2.ipynb`, `KL_perturb3.ipynb`) with early experimentation are kept unchanged for reference.
 
-Historical notebooks are kept unchanged for posterity:
+---
 
-- `kl_perturb.ipynb`
-- `KL_perturb2.ipynb`
-- `KL_perturb3.ipynb`
+## Method overview (4 stages)
 
-## 1) Where to run commands (repo root)
+**Stage A — Public dictionary construction.**
+A fraction `public_frac` of nodes (and the subgraph they induce) is treated as fully public. For each class label, the public subgraph is mined to produce a pool of candidate prototype subgraphs, which are then filtered (size, purity, connectivity, overlap) and diversified via k-center selection into a dictionary of `dict_per_class` prototypes per class.
 
-You should run commands **from the repo root** (the folder that contains `pyproject.toml`).
+**Stage B — Private query computation.**
+Each private node computes a soft-normalized 1-hop mean of its neighbors' feature vectors, using only the private graph edges. This query vector summarizes the node's local structure without releasing edge identities.
 
-- If you cloned from GitHub, that usually looks like:
+**Stage C — Exponential mechanism assignment.**
+For each private node, the exponential mechanism samples one of the `C × dict_per_class` dictionary prototypes (where C = number of classes) with probability proportional to `exp(ε × utility(query, prototype) / sensitivity)`. By composition, this step is 2ε-DP over the full private edge set.
 
-```bash
-cd MM-edgeDP
-```
+**Stage D — GCN training on synthetic data.**
+The assigned prototypes form the training graph; a small two-layer GCN is trained on this synthetic data. Because prototype assignment is post-processed from an already-privatized output, this stage is free under the DP guarantee (post-processing theorem).
 
-- In Google Colab, the equivalent is:
+---
 
-```bash
-%cd MM-edgeDP
-```
+## File layout
 
-- If you're inside the course workspace that contains many homeworks, it may look like:
+| File | Purpose |
+|---|---|
+| `experiments.py` | Core pipeline — `run_experiment(config)` runs all 4 stages and returns metrics |
+| `sweep.py` | Hyperparameter grid runner for Phase 1 and Phase 2 |
+| `baselines.py` | All 5 comparison methods + white-box and black-box privacy attacks (Phase 3) |
+| `results.ipynb` | Loads output CSVs and produces all plots and tables |
+| `configs/sweep_phase1.json` | Phase 1 grid: `public_frac × dict_per_class` |
+| `configs/sweep_phase2.json` | Phase 2 grid: `epsilon` sweep |
+| `outputs/sweep_phase1.csv` | Written by `python sweep.py --phase 1` |
+| `outputs/sweep_phase2.csv` | Written by `python sweep.py --phase 2` |
+| `outputs/baseline_results.csv` | Written by `python baselines.py` |
 
-```bash
-cd final_project/MM-edgeDP
-```
+---
 
-You can sanity-check you're in the right place by verifying you can see `configs/`, `scripts/`, and `mm_edgedp/`.
+## Quickstart
 
-## 2) Quickstart (Google Colab + macOS)
-
-This project is designed to be easy to run in **Google Colab** (most partners) and on **macOS locally** (optional).
-
-### Google Colab quickstart (recommended)
-
-In Colab, you can do a dry run (easy) or try the full training install.
-
-Colab tips (important):
-
-- Use `%cd ...` to change directories (it persists). `!cd ...` does not persist across cells.
-- If you change the code in Colab, reinstall the package (see the “editable” note below).
-- To use a GPU: Colab menu → `Runtime` → `Change runtime type` → choose `GPU`.
-
-Dry run (recommended first):
-
-Cell 1 — clone the repo and enter it:
+### 1. Install dependencies
 
 ```bash
-!git clone https://github.com/ChefAltoids/MM-edgeDP
-%cd MM-edgeDP
+pip install torch torch-geometric
+pip install numpy pandas matplotlib seaborn scikit-learn
 ```
 
-Cell 2 — install the project (lightweight) and run a dry run:
+For PyG, follow the official install instructions for your Torch + CUDA combination:
+https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
+
+### 2. Run Phase 1 — hyperparameter grid (public_frac × dict_per_class)
 
 ```bash
-!python -m pip install -q --upgrade pip
-!python -m pip install -q .
-!python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --dry-run
+python sweep.py --phase 1
 ```
 
-Full install for training:
-
-Cell 1 — clone the repo and enter it (same as above):
+Results are written to `outputs/sweep_phase1.csv`. To preview without running:
 
 ```bash
-!git clone https://github.com/ChefAltoids/MM-edgeDP
-%cd MM-edgeDP
+python sweep.py --phase 1 --dry-run
 ```
 
-Cell 2 — install training dependencies and run:
+To resume after an interruption (skips already-completed rows):
 
 ```bash
-!python -m pip install -q --upgrade pip
-!python -m pip install -q -r requirements-colab.txt
-!python -m pip install -q .
-!python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --set train.epochs=5
+python sweep.py --phase 1 --resume
 ```
 
-If installs behave strangely after switching runtimes (CPU ↔ GPU), try `Runtime` → `Restart runtime` and rerun the cells.
-
-Editable install (only if you plan to edit the code in Colab):
+### 3. Run Phase 2 — epsilon sweep
 
 ```bash
-!python -m pip install -q -e .
+python sweep.py --phase 2
 ```
 
-Saving results from Colab:
+Results are written to `outputs/sweep_phase2.csv`. Phase 2 uses the best `dict_per_class` from Phase 1 (set in `configs/sweep_phase2.json`).
 
-- Outputs are written to `outputs/` inside the Colab VM, which resets when your runtime resets.
-- Quick download as a zip:
+### 4. Run Phase 3 — baseline comparison with privacy attacks
 
 ```bash
-!zip -r outputs.zip outputs
+python baselines.py --datasets Cora AmazonPhoto --epsilon 1.0 --seeds 0 1 2
 ```
 
-If `torch-geometric` fails to install in Colab, that’s a common packaging issue (it depends on extra compiled wheels). In that case:
+Runs all 5 methods (Gaussian SGC, Edge RR, GAP-EDP, Public GCN, MM-EdgeDP) plus white-box and black-box edge inference attacks on each dataset. Results are written to `outputs/baseline_results.csv`.
 
-- You can still do `--dry-run` work.
-- For full training, follow the official PyG install instructions for your exact Torch + CUDA version: https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
+### 5. View results
 
-### macOS local quickstart (optional)
+Open `results.ipynb` in Jupyter. It loads the three CSVs and produces:
 
-Recommended (keeps installs isolated):
+- Phase 1: heatmap of mean val accuracy over `public_frac × dict_per_class`
+- Phase 2: privacy-utility curve (accuracy vs. ε)
+- Phase 3: grouped accuracy bar chart, privacy-utility scatter (BB AUC vs. accuracy), per-dataset attack AUC bars, summary table
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
+---
+
+## sweep.py — reference
+
+```
+python sweep.py --phase 1            # Phase 1 grid
+python sweep.py --phase 2            # Phase 2 epsilon sweep
+python sweep.py --config configs/sweep_phase2.json   # any JSON config
+python sweep.py --phase 1 --set dict_per_class=64    # override a grid value
+python sweep.py --phase 1 --set epochs=10            # override a base config value
+python sweep.py --phase 1 --dry-run                  # print configs, no training
+python sweep.py --phase 1 --resume                   # skip completed rows
+python sweep.py --phase 1 --output my_results.csv    # custom output path
 ```
 
-Fast sanity check (no ML installs):
-
-```bash
-python -m pip install .
-python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --dry-run
-```
-
-Run the baseline (downloads data + trains):
-
-```bash
-python -m pip install ".[train]"
-python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --set train.epochs=5
-```
-
-Notes:
-
-- The dataset `ogbn-arxiv` will download/cache under `data/` (see the config field `dataset.root`).
-- Training uses GPU if available; otherwise CPU.
-
-## 3) Folder layout (what things are)
-
-- `mm_edgedp/`: reusable Python code (config loader + experiment runner). This is where new methods should live.
-- `scripts/`: command-line entrypoints (`run_experiment`, `run_sweep`).
-- `configs/`: JSON files that describe experiments.
-	- `configs/base/`: shared defaults (dataset, trainer defaults, mechanism defaults).
-	- `configs/tracks/`: “tracks” (small bundles of settings like `defensible` vs `exploratory`).
-	- `configs/experiments/`: named experiments you can run.
-	- `configs/sweeps/`: sweep definitions (e.g., seed/epsilon grids).
-	- `configs/paper_protocol_v1.json`: legacy/original config kept for reference.
-- `outputs/`: every run writes a folder here with:
-	- `resolved_config.json`: the fully merged config used for the run
-	- `metrics.json`: results/metrics from the run
-- `notebooks/`: place for analysis notebooks that read from `outputs/`.
-
-Note: `outputs/` is meant for generated artifacts and is typically gitignored (so you don’t accidentally commit large results folders).
-
-## 4) What “config-driven experimentation” means
-
-Instead of hard-coding settings in Python, you write them in small JSON files:
-
-- Want to change a hyperparameter? Make a new config file.
-- Want to run many variants? Use a sweep config.
-- Want to reproduce a run later? Open the saved `resolved_config.json`.
-
-### Which config fields matter right now?
-
-Today, the scripted runner is intentionally minimal. These sections currently affect what actually runs:
-
-- `run` (name, seed, output_dir)
-- `dataset` (currently only supports `ogbn-arxiv`)
-- `tasks` (turn baseline tasks on/off)
-- `model` and `train` (baseline model/training hyperparameters)
-
-Other sections like `privacy` and `mechanism` are still useful — they are **saved into `resolved_config.json`** so your experiment settings stay reproducible — but the baseline runner does not yet apply them to the model/training logic.
-
-### Config inheritance with `extends`
-
-Configs can “inherit” other configs with an `extends` list. Example (simplified):
+**Sweep JSON format** (`configs/sweep_phase1.json`):
 
 ```json
 {
-	"extends": [
-		"configs/base/dataset_ogbn_arxiv.json",
-		"configs/base/trainer_default.json",
-		"configs/tracks/defensible.json"
-	],
-	"run": {"name": "my_run", "seed": 123}
+  "description": "...",
+  "grid": {
+    "dataset":        ["Cora"],
+    "epsilon":        [1.0],
+    "public_frac":    [0.02, 0.05, 0.20],
+    "dict_per_class": [4, 16, 64, 128],
+    "seed":           [0, 1, 2]
+  },
+  "base_config": {}
 }
 ```
 
-Merge order is:
+All combinations of `grid` values are run as a Cartesian product. `base_config` keys are applied to every config in the grid. `--set KEY=VALUE` overrides win over both.
 
-1. Parent files in `extends` (left → right)
-2. The current file
-3. Command-line overrides (`--set ...`)
+---
 
-### Command-line overrides (`--set`)
+## baselines.py — reference
 
-Overrides let you change a single value without creating a new file.
+```
+python baselines.py                                  # default: Cora, FacebookPagePage, Actor
+python baselines.py --datasets Cora AmazonPhoto      # choose datasets
+python baselines.py --epsilon 2.0                    # privacy budget
+python baselines.py --public_frac 0.20               # public fraction
+python baselines.py --dict_per_class 128             # dictionary size (MM-EdgeDP only)
+python baselines.py --seeds 0 1 2                    # random seeds
+python baselines.py --resume                         # skip completed rows
+python baselines.py --dry-run                        # print configs, no training
+python baselines.py --verbose                        # extra training output
+```
 
-Examples:
+**Methods compared:**
+
+| Method | DP type | Notes |
+|---|---|---|
+| Gaussian SGC | (ε,δ)-DP | Gaussian noise on 1-hop aggregation |
+| Edge RR | ε-DP | Randomized response on each edge (limited to ≤5000 train nodes) |
+| GAP-EDP | (ε,δ)-DP | Multi-hop Gaussian PMA |
+| Public GCN | none | Trained on public nodes/edges only; sets the feature-leakage floor |
+| MM-EdgeDP | ε-DP | This paper's method |
+
+**Privacy attacks:** for each method, a logistic regression attack is trained on held-out edge pairs using either white-box features (penultimate embeddings, Hadamard product of node pairs) or black-box features (softmax outputs, disagreement and co-activation scores). Attack AUC ≈ 0.5 means no edge information is recoverable; AUC ≈ 1.0 means near-perfect inference. Compare methods against the Public GCN AUC (feature-distribution floor), not against 0.5.
+
+---
+
+## experiments.py — configuration reference
+
+`run_experiment(config, verbose=True)` merges `config` into `DEFAULT_CONFIG` and runs the full 4-stage pipeline. Supported keys:
+
+| Key | Default | Description |
+|---|---|---|
+| `dataset` | `'Cora'` | Dataset name (see below) |
+| `seed` | `42` | Global random seed |
+| `public_frac` | `0.20` | Fraction of nodes treated as public |
+| `val_frac` | `0.20` | Fraction of nodes used for validation |
+| `epsilon` | `1.0` | Privacy budget ε for exponential mechanism |
+| `dict_per_class` | `8` | Dictionary entries per class |
+| `label_conditioning` | `True` | Whether to condition prototype selection on class label |
+| `use_kcenter` | `True` | Use k-center diversification (False = random selection) |
+| `kcenter_lambda` | `0.5` | Balance between diversity (0) and coverage (1) |
+| `encoder_hidden` | `64` | Hidden size of the public GCN encoder |
+| `encoder_out` | `32` | Output dimension of the public encoder |
+| `encoder_epochs` | `200` | Training epochs for the public encoder |
+| `epochs` | `50` | Training epochs for the downstream GCN |
+| `lr` | `0.01` | Learning rate for the downstream GCN |
+
+---
+
+## Supported datasets
+
+| Dataset | Type | Notes |
+|---|---|---|
+| `Cora` | Citation (homophilic) | Default; downloads automatically via PyG |
+| `Actor` | Co-occurrence (heterophilic) | Set `label_conditioning=False` in config |
+| `FacebookPagePage` | Social (homophilic) | See note below — requires manual download |
+| `AmazonPhoto` | Co-purchase (homophilic) | Downloads automatically via PyG |
+| `LastFMAsia` | Social | Requires manual download (same hosting issue as FacebookPagePage) |
+
+**FacebookPagePage / LastFMAsia**: the graphmining.ai hosting server returns HTTP 404. To use FacebookPagePage, download `facebook.npz` manually and place it at `data/facebookpagepage/raw/facebook.npz`. PyG will then skip the download and load the file directly.
+
+---
+
+## Troubleshooting
+
+**Edge RR segfaults or raises RuntimeError on large datasets.**
+Edge RR allocates an O(n²) adjacency matrix. It is blocked for graphs with more than 5000 training nodes. On affected datasets it will be written as an error row in the CSV; all other methods will still run.
+
+**"HTTP Error 404: Not Found" when loading FacebookPagePage or LastFMAsia.**
+The graphmining.ai CDN hosting these datasets is down. See the dataset note above for the manual download workaround, or use AmazonPhoto instead:
 
 ```bash
-python -m scripts.run_experiment \
-	--config configs/experiments/paper_v1_defensible.json \
-	--set privacy.epsilon=2.0 \
-	--set run.seed=7 \
-	--set train.epochs=10
+python baselines.py --datasets Cora AmazonPhoto
 ```
 
-Tip: override values are parsed as numbers/booleans when possible.
+**`torch-geometric` won't install.**
+Follow the official PyG installation guide for your specific PyTorch and CUDA version:
+https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
 
-## 5) “Testing the idea” (practical workflow)
-
-If you’re not sure anything is installed correctly, this sequence is usually the least painful:
-
-1. **Dry run** (confirms config + output writing works)
-
-```bash
-python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --dry-run
-```
-
-2. **Tiny run** (confirms training works, but keeps it short)
-
-```bash
-python -m scripts.run_experiment \
-	--config configs/experiments/paper_v1_defensible.json \
-	--set train.epochs=1
-```
-
-3. **Sweep dry run** (confirms the sweep loop + naming works)
-
-```bash
-python -m scripts.run_sweep --config configs/sweeps/epsilon_grid_small.json --dry-run
-```
-
-## 6) Where to put new method ideas vs. ablations
-
-Use this decision guide:
-
-### “I only want to change settings” (best for most ablations)
-
-Create a new JSON file under `configs/experiments/` that extends an existing experiment and changes a few fields.
-
-For example, create a new experiment config that changes epochs, dropout, or which tasks run.
-
-This is the recommended path for:
-
-- hyperparameter ablations (epochs, lr, hidden size, etc.)
-- changing which baseline tasks run (`tasks.run_logreg`, `tasks.run_gcn`)
-- changing bookkeeping fields like `run.name`, `run.seed`
-
-#### Example: make a new ablation config
-
-Create a new file like `configs/experiments/my_first_ablation.json`:
-
-```json
-{
-	"extends": [
-		"configs/experiments/paper_v1_defensible.json"
-	],
-	"run": {
-		"name": "my_first_ablation"
-	},
-	"tasks": {
-		"run_logreg": false,
-		"run_gcn": true
-	},
-	"train": {
-		"epochs": 5
-	}
-}
-```
-
-Run it:
-
-```bash
-python -m scripts.run_experiment --config configs/experiments/my_first_ablation.json
-```
-
-### “I have a new Edge-DP method” (code change)
-
-This is the path for **new Edge-DP methods** you want to compare against the baseline (for example: aggregation perturbation, randomized response on edges, degree-based mechanisms, etc.).
-
-Right now, the runner **records** `privacy` / `mechanism` settings in `resolved_config.json`, but it does not automatically apply them. If you want a new DP method to actually affect results, you will need to implement it and wire it into the run.
-
-Practical starting points:
-
-- `mm_edgedp/runner.py` is the orchestrator: it loads data and runs the baseline tasks.
-- `baseline.py` contains the current baseline training/eval code.
-
-Suggested contribution pattern (beginner-friendly):
-
-1. Create a new module under `mm_edgedp/` for your method (e.g. `mm_edgedp/aggregation_perturbation.py`).
-2. Pick a simple config switch so experiments can select methods without editing Python:
-	 - Recommended: `method.name` (string) + a method-specific params section.
-3. Update `mm_edgedp/runner.py` to branch on `method.name` and apply your method.
-	 - Common place to apply edge-DP methods: **after loading the graph** but **before** running `run_logreg` / `train_gcn`.
-4. Add a new experiment config in `configs/experiments/` that turns your method on.
-5. Compare against baseline by running two configs with the same `run.seed` and the same `privacy.epsilon`.
-
-#### Example: wiring in an “aggregation perturbation” method
-
-Create an experiment config like `configs/experiments/agg_perturb_example.json`:
-
-```json
-{
-	"extends": ["configs/experiments/paper_v1_defensible.json"],
-	"run": {"name": "agg_perturb_example"},
-	"method": {
-		"name": "aggregation_perturbation"
-	},
-	"privacy": {
-		"epsilon": 1.0
-	},
-	"aggregation_perturbation": {
-		"some_parameter": 0.1
-	}
-}
-```
-
-Then (after implementing the method + runner hook), run:
-
-```bash
-python -m scripts.run_experiment --config configs/experiments/agg_perturb_example.json
-```
-
-To do an epsilon comparison, you can either:
-
-- run multiple commands with `--set privacy.epsilon=...`, or
-- create a sweep config under `configs/sweeps/` that extends your method experiment and sets `sweep.epsilons`.
-
-#### Contributing via GitHub (recommended)
-
-If you want your method/ablation to be easy for others to reproduce:
-
-1. Fork the repo on GitHub (or create a branch if you have write access).
-2. Add code under `mm_edgedp/` and add one or more configs under `configs/experiments/`.
-3. Run a quick check (in Colab or macOS):
-
-```bash
-python -m scripts.run_experiment --config configs/experiments/paper_v1_defensible.json --dry-run
-```
-
-4. Open a pull request and describe:
-	- what method you implemented (e.g., “aggregation perturbation for edge-DP”)
-	- which config(s) to run
-	- what metrics/output file to look at (`outputs/<run_name>/metrics.json`)
-
-### “Where should I do new work?”
-
-Do new development work inside this repo (MM-edgeDP):
-
-- **new method code** → `mm_edgedp/`
-- **new experiment variants / ablations** → `configs/experiments/` (and optionally `configs/tracks/`)
-- **analysis plots/tables** → `notebooks/` reading from `outputs/`
-
-The KL perturbation notebooks are intentionally not edited; treat them as historical references.
-
-## 7) Troubleshooting (common beginner issues)
-
-- “I got `ModuleNotFoundError: torch`”
-	- Use `--dry-run`, or install training deps: `python -m pip install ".[train]"`.
-
-- “`torch-geometric` won’t install”
-	- Very common on fresh environments. Follow PyG’s official install page for your Torch/CUDA combo:
-		https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
-
-- “A config in `extends` can’t be found”
-	- Make sure you are running commands from the repo root (the folder with `pyproject.toml`).
-	- Or pass `--repo-root .` explicitly (it defaults to `.`).
-
-## 8) Optional: CLI shortcuts after install
-
-If you installed the package (e.g. `pip install .`), you can also use the console scripts:
-
-```bash
-mm-edgedp-run --config configs/experiments/paper_v1_defensible.json --dry-run
-mm-edgedp-sweep --config configs/sweeps/epsilon_grid_small.json --dry-run
-```
+**Results CSV is missing or empty.**
+Make sure you run the scripts from the repo root (the directory containing `sweep.py`). The `outputs/` directory is created automatically on first write.
