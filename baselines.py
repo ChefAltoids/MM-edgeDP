@@ -664,7 +664,7 @@ def _done_keys(csv_path: Path) -> set[tuple]:
 
 def _parse_args():
     p = argparse.ArgumentParser(description='MM-EdgeDP baseline comparison + attacks')
-    p.add_argument('--datasets', nargs='+', default=['Cora', 'FacebookPagePage', 'Actor'])
+    p.add_argument('--datasets', nargs='+', default=['Cora', 'AmazonPhoto', 'Actor'])
     p.add_argument('--epsilon', type=float, default=1.0)
     p.add_argument('--public_frac', type=float, default=0.20)
     p.add_argument('--dict_per_class', type=int, default=16)

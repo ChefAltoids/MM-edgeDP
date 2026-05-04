@@ -130,7 +130,7 @@ All combinations of `grid` values are run as a Cartesian product. `base_config` 
 ## baselines.py — reference
 
 ```
-python baselines.py                                  # default: Cora, FacebookPagePage, Actor
+python baselines.py                                  # default: Cora, AmazonPhoto, Actor
 python baselines.py --datasets Cora AmazonPhoto      # choose datasets
 python baselines.py --epsilon 2.0                    # privacy budget
 python baselines.py --public_frac 0.20               # public fraction
@@ -183,12 +183,8 @@ python baselines.py --verbose                        # extra training output
 | Dataset | Type | Notes |
 |---|---|---|
 | `Cora` | Citation (homophilic) | Default; downloads automatically via PyG |
-| `Actor` | Co-occurrence (heterophilic) | Set `label_conditioning=False` in config |
-| `FacebookPagePage` | Social (homophilic) | See note below — requires manual download |
 | `AmazonPhoto` | Co-purchase (homophilic) | Downloads automatically via PyG |
-| `LastFMAsia` | Social | Requires manual download (same hosting issue as FacebookPagePage) |
-
-**FacebookPagePage / LastFMAsia**: the graphmining.ai hosting server returns HTTP 404. To use FacebookPagePage, download `facebook.npz` manually and place it at `data/facebookpagepage/raw/facebook.npz`. PyG will then skip the download and load the file directly.
+| `Actor` | Co-occurrence (heterophilic) | Set `label_conditioning=False` in config |
 
 ---
 
@@ -196,13 +192,6 @@ python baselines.py --verbose                        # extra training output
 
 **Edge RR segfaults or raises RuntimeError on large datasets.**
 Edge RR allocates an O(n²) adjacency matrix. It is blocked for graphs with more than 5000 training nodes. On affected datasets it will be written as an error row in the CSV; all other methods will still run.
-
-**"HTTP Error 404: Not Found" when loading FacebookPagePage or LastFMAsia.**
-The graphmining.ai CDN hosting these datasets is down. See the dataset note above for the manual download workaround, or use AmazonPhoto instead:
-
-```bash
-python baselines.py --datasets Cora AmazonPhoto
-```
 
 **`torch-geometric` won't install.**
 Follow the official PyG installation guide for your specific PyTorch and CUDA version:
