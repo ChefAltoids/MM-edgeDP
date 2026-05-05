@@ -38,6 +38,20 @@ The assigned prototypes form the training graph; a small two-layer GCN is traine
 
 ---
 
+## Reproducing the paper results
+
+Run these three commands to regenerate all CSVs in `outputs/`, then open `results.ipynb` to produce the figures:
+
+```bash
+python3 sweep.py --phase 1
+
+python3 sweep.py --phase 2 --set public_frac=0.2 --set dict_per_class=128 --output outputs/sweep_phase2_pf20.csv
+
+python3 baselines.py --datasets Cora AmazonPhoto Actor --public_frac 0.2 --dict_per_class 128 --verbose --epsilon 1
+```
+
+---
+
 ## Quickstart
 
 ### 1. Install dependencies
