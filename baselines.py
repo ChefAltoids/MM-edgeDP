@@ -538,6 +538,8 @@ def run_all_methods(config: dict, verbose: bool = True) -> list[dict]:
     Returns a list of result dicts, one per method.
     """
     cfg = {**DEFAULT_PHASE3_CONFIG, **config}
+    if 'utility_sensitivity' not in cfg:
+        cfg['utility_sensitivity'] = 1.0 / math.sqrt(cfg['tau_soft_norm'])
     device = _get_device()
     set_seed(cfg['seed'])
 

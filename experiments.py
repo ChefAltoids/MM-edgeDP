@@ -8,6 +8,7 @@ Usage:
     print(results['val_acc'])
 """
 
+import math
 import random
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -39,7 +40,6 @@ DEFAULT_CONFIG = {
     'public_query_frac': 0.25,
     # mechanism
     'epsilon': 1.0,
-    'utility_sensitivity': 1.0,
     'query_mode': 'one_hop',
     'walk_hops': 1,
     'query_hops': 1,
@@ -610,6 +610,8 @@ def run_experiment(config: dict, verbose: bool = True) -> dict:
     Returns a flat dict of results suitable for appending to a DataFrame.
     """
     cfg = {**DEFAULT_CONFIG, **config}
+    if 'utility_sensitivity' not in cfg:
+        cfg['utility_sensitivity'] = 1.0 / math.sqrt(cfg['tau_soft_norm'])
     device = _get_device()
     set_seed(cfg['seed'])
 
