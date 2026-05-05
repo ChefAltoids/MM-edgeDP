@@ -1,14 +1,75 @@
-# MM-edgeDP (Beginner-Friendly)
+# MM-edgeDP
 
-MM-edgeDP is a small, script-first project that lets you run (and later extend) experiments from **JSON config files** instead of editing notebook cells.
+MM-edgeDP is an edge-differentially-private graph learning framework. It implements the **MM-edgeDP mechanism** (KL-perturbed dictionary retrieval via the exponential mechanism) alongside three standard Edge-DP baselines for comparison: Gaussian SGC, Edge Randomized Response, and GAP-EDP.
 
-If you're new to ML codebases: that's totally fine — the goal here is that you can clone the repo, run a “dry run” without installing heavy ML packages, and then gradually turn on training once you’re ready.
+## Reproducing the paper results
 
-Historical notebooks are kept unchanged for posterity:
+Three commands reproduce all CSV outputs and the figures in `results.ipynb`:
+
+```bash
+# Phase 1 — default-settings sweep (all 4 datasets, ε ∈ {0.5,1,2,4}, seeds 42–44)
+python3 sweep.py --phase 1
+
+# Phase 2 — public_frac=0.2 ablation
+python3 sweep.py --phase 2 --set public_frac=0.2 --set dict_per_class=128 \
+    --output outputs/sweep_phase2_pf20.csv
+
+# Baselines — Gaussian SGC, Edge RR, GAP-EDP on three datasets
+python3 baselines.py --datasets Cora AmazonPhoto Actor \
+    --public_frac 0.2 --dict_per_class 128 --verbose --epsilon 1
+```
+
+Then open `results.ipynb` to regenerate all plots and tables from the CSVs in `outputs/`.
+
+---
+
+Historical exploration notebooks are kept unchanged for reference:
 
 - `kl_perturb.ipynb`
 - `KL_perturb2.ipynb`
 - `KL_perturb3.ipynb`
+
+## Script reference
+
+### `sweep.py` — MM-edgeDP sweep
+
+Runs the full MM-edgeDP pipeline (dictionary build → exponential-mechanism sampling → GCN training) across datasets, ε values, and seeds. Outputs a CSV.
+
+```
+python3 sweep.py --phase 1
+python3 sweep.py --phase 2 --set public_frac=0.2 --set dict_per_class=128 \
+    --output outputs/sweep_phase2_pf20.csv
+```
+
+| Flag | Description |
+|---|---|
+| `--phase 1` | Default settings (all 4 datasets, default public_frac/dict_per_class) |
+| `--phase 2` | Same as phase 1 but apply `--set` overrides |
+| `--set key=value` | Override any config field (e.g. `public_frac`, `dict_per_class`, `query_mode`) |
+| `--datasets` | Restrict to specific datasets, e.g. `--datasets Cora CiteSeer` |
+| `--output` | CSV output path (default: `outputs/sweep_phase<N>.csv`) |
+
+### `baselines.py` — Edge-DP baseline comparison
+
+Runs **Gaussian SGC**, **Edge Randomized Response**, and **GAP-EDP** on any combination of supported datasets and ε values. Outputs a CSV.
+
+```
+python3 baselines.py --datasets Cora AmazonPhoto Actor \
+    --public_frac 0.2 --epsilon 0.5 1 4 --verbose
+```
+
+| Flag | Description |
+|---|---|
+| `--datasets` | One or more dataset names (see supported list below) |
+| `--epsilon` | One or more ε values, e.g. `--epsilon 0.5 1 4` |
+| `--public_frac` | Fraction of nodes used as the public split (default: 0.20) |
+| `--seed` | Random seed (default: 42) |
+| `--verbose` | Print per-epoch training progress |
+| `--output` | CSV output path (default: `outputs/baselines_<timestamp>.csv`) |
+
+**Supported datasets:** Cora, CiteSeer, PubMed, ogbn-arxiv, AmazonPhoto, Actor, Squirrel, Chameleon, FacebookPagePage, LastFMAsia
+
+---
 
 ## 1) Where to run commands (repo root)
 
