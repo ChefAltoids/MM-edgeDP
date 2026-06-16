@@ -1,0 +1,28 @@
+# Graph domain adaptation: ACMv9 (source) -> DBLPv7 (target).
+# The canonical *covariate-shift* graph-transfer benchmark (shared feature +
+# label space). Requires the .mat files under gda_root (not pip-installable;
+# see colab_real_data.ipynb / load_graph_da for acquisition).
+
+dataset: graph_da
+gda_source: acmv9
+gda_target: dblpv7
+gda_root: data/graph_da
+# Optional direct-download URLs (loader fetches if the .mat is absent):
+gda_source_url: null
+gda_target_url: null
+
+K: 64
+d_max: 20
+B: 5.0
+reweight_rho: 0.001
+
+hidden: 128
+num_layers: 2
+epochs: 200
+lr: 0.01
+weight_decay: 0.0005
+dropout: 0.5
+device: cpu
+
+epsilon: 1.0
+seed: 0

@@ -22,7 +22,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dp_ot.data.synthetic import make_source_target_pair, make_regime, make_misspecified_pair
-from dp_ot.data.real_splits import load_twitch_pair, load_ogb_arxiv_temporal
+from dp_ot.data.real_splits import load_twitch_pair, load_ogb_arxiv_temporal, load_graph_da_pair
 from dp_ot.models.gnn import train_source_gnn, train_weighted_source_gnn
 from dp_ot.adapt.prototypes import fit_public_prototypes, compute_target_summaries
 from dp_ot.adapt.dp_histogram import dp_histogram_assign, nonprivate_histogram
@@ -63,6 +63,12 @@ DEFAULT_CONFIG = {
     "ogb_source_before_year": 2018,
     "ogb_target_from_year": 2018,
     "ogb_root": "data/ogb",
+    # Graph-DA (ACMv9 / DBLPv7 / Citationv1) — genuine covariate-shift benchmark
+    "gda_source": "acmv9",
+    "gda_target": "dblpv7",
+    "gda_root": "data/graph_da",
+    "gda_source_url": None,
+    "gda_target_url": None,
     # Prototype construction
     "K": 32,
     "d_max": 10,      # degree cap for target summaries
@@ -97,6 +103,15 @@ def _load_graphs(cfg: dict) -> tuple:
             source_before_year=cfg["ogb_source_before_year"],
             target_from_year=cfg["ogb_target_from_year"],
             root=cfg["ogb_root"],
+        )
+
+    if dataset == "graph_da":
+        return load_graph_da_pair(
+            source=cfg["gda_source"],
+            target=cfg["gda_target"],
+            root=cfg["gda_root"],
+            source_url=cfg.get("gda_source_url"),
+            target_url=cfg.get("gda_target_url"),
         )
 
     # Default: synthetic

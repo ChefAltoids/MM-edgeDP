@@ -127,6 +127,106 @@ def _induced_subgraph(data: Data, mask: np.ndarray) -> Data:
 
 
 # ---------------------------------------------------------------------------
+# Graph domain-adaptation citation networks (ACMv9 / DBLPv7 / Citationv1)
+# ---------------------------------------------------------------------------
+#
+# The canonical *covariate-shift* graph-transfer benchmarks (ArnetMiner cross-
+# domain citation networks, as used by AdaGCN / UDAGCN). All three share a common
+# bag-of-words feature space and a common label space, so any (source, target)
+# pair is a genuine domain-adaptation problem — unlike OGB-arxiv temporal, whose
+# shift is mostly label-prior, not covariate.
+#
+# Distributed as MATLAB .mat files (acmv9.mat, dblpv7.mat, citationv1.mat) with
+#     attrb   : (n, d) node features (sparse or dense)
+#     network : (n, n) sparse adjacency
+#     group   : (n, c) one-hot labels
+# There is no pip-installable canonical source: download the .mat files once and
+# place them under `root` (the notebook shows upload / gdown options).
+
+GRAPH_DA_DATASETS = ("acmv9", "dblpv7", "citationv1")
+
+
+def _first_present(mat: dict, keys: list[str]):
+    for k in keys:
+        if k in mat:
+            return mat[k]
+    present = [k for k in mat if not k.startswith("__")]
+    raise KeyError(f"None of {keys} found in .mat; keys present: {present}")
+
+
+def _to_dense(a) -> np.ndarray:
+    import scipy.sparse as sp
+    return np.asarray(a.todense()) if sp.issparse(a) else np.asarray(a)
+
+
+def load_graph_da(name: str, root: str = "data/graph_da", url: str | None = None) -> Data:
+    """
+    Load one graph-DA citation network from a local .mat file.
+
+    Looks for `{root}/{name}.mat` (keys attrb/network/group, with alternative
+    names tried). If absent and `url` is given, downloads it first; otherwise
+    raises with acquisition instructions.
+    """
+    import os
+    import scipy.io as sio
+    import scipy.sparse as sp
+
+    name = name.lower()
+    path = os.path.join(root, f"{name}.mat")
+    if not os.path.exists(path) and url:
+        os.makedirs(root, exist_ok=True)
+        import urllib.request
+        print(f"Downloading {name} from {url} ...", flush=True)
+        urllib.request.urlretrieve(url, path)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Could not find {path}. The ACMv9/DBLPv7/Citationv1 graph-DA datasets "
+            f"are not pip-installable. Download the .mat files (UDAGCN / AdaGCN "
+            f"repositories, or the ArnetMiner cross-domain citation release) and "
+            f"place '{name}.mat' under '{root}/'. In Colab you can upload via "
+            f"google.colab.files.upload() or fetch with gdown, then re-run."
+        )
+
+    mat = sio.loadmat(path)
+    X = _to_dense(_first_present(mat, ["attrb", "attr", "features", "X", "fea"])).astype(np.float32)
+    A = _first_present(mat, ["network", "adj", "A", "W"])
+    G = _to_dense(_first_present(mat, ["group", "label", "labels", "Y", "gnd"]))
+
+    n = X.shape[0]
+    y = G.argmax(axis=1) if (G.ndim == 2 and G.shape[1] > 1) else G.reshape(-1).astype(np.int64)
+
+    coo = sp.coo_matrix(A)
+    edge_index = torch.tensor(np.vstack([coo.row, coo.col]), dtype=torch.long)
+    edge_index = to_undirected(edge_index, num_nodes=n)
+
+    return Data(
+        x=torch.tensor(X, dtype=torch.float32),
+        edge_index=edge_index,
+        y=torch.tensor(y, dtype=torch.long),
+        num_nodes=n,
+    )
+
+
+def load_graph_da_pair(
+    source: str,
+    target: str,
+    root: str = "data/graph_da",
+    source_url: str | None = None,
+    target_url: str | None = None,
+) -> tuple[Data, Data]:
+    """Load a (source, target) graph-DA pair, e.g. ('acmv9', 'dblpv7')."""
+    G_source = load_graph_da(source, root=root, url=source_url)
+    G_target = load_graph_da(target, root=root, url=target_url)
+    if G_source.x.shape[1] != G_target.x.shape[1]:
+        raise ValueError(
+            f"Feature-dim mismatch: source {G_source.x.shape[1]} vs target "
+            f"{G_target.x.shape[1]}. A graph-DA pair must share a vocabulary — use "
+            f"the aligned ArnetMiner release where all graphs have the same d."
+        )
+    return G_source, G_target
+
+
+# ---------------------------------------------------------------------------
 # Utility: compute basic shift diagnostics (non-private, for analysis only)
 # ---------------------------------------------------------------------------
 
