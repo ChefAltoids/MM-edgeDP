@@ -170,9 +170,10 @@ def make_regime(
     gamma: float = 0.75,
     edge_alpha_T: float | None = None,
     edge_beta_T: float | None = None,
+    source_minority_mass: float = 0.05,
 ) -> tuple[Data, Data, np.ndarray, np.ndarray]:
     """
-    Generate a source-target pair for one of four shift regimes (Experiment 2).
+    Generate a source-target pair for one of several shift regimes.
 
     Regimes
     -------
@@ -180,13 +181,23 @@ def make_regime(
     'covariate_shift'   : different P(Z), same edge mechanism
     'structural_shift'  : same P(Z), different edge mechanism
     'both'              : different P(Z) AND different edge mechanism
+    'support_mismatch'  : source UNDER-represents the component the target
+                          concentrates on. This is the regime where importance
+                          weighting actually helps: the source barely covers the
+                          target's dominant region, so upweighting its few
+                          examples there changes what the model fits. Source puts
+                          only `source_minority_mass` on the last component;
+                          target concentrates on it (controlled by gamma).
+                          Pair with a capacity-limited model (small hidden / few
+                          epochs) and larger mean_scale for the clearest gain.
 
     For structural shift, the target uses edge_alpha_T / edge_beta_T
     (defaults: halved edge_alpha and raised edge_beta to change density+homophily).
 
     Returns (G_source, G_target, p_source, p_target).
     """
-    assert regime in ("no_shift", "covariate_shift", "structural_shift", "both"), \
+    assert regime in ("no_shift", "covariate_shift", "structural_shift",
+                      "both", "support_mismatch"), \
         f"Unknown regime: {regime!r}"
 
     rng = np.random.default_rng(seed)
@@ -196,8 +207,14 @@ def make_regime(
     p_shift = np.zeros(M)
     p_shift[-1] = 1.0
 
-    # Target mixture weights
-    if regime in ("covariate_shift", "both"):
+    # Target mixture weights (and, for support_mismatch, a skewed source)
+    if regime == "support_mismatch":
+        # Source: minority mass on the last component, rest split evenly.
+        p_source = np.full(M, (1.0 - source_minority_mass) / (M - 1))
+        p_source[-1] = source_minority_mass
+        # Target: concentrate on the under-represented last component.
+        p_target = shift_weights(np.ones(M) / M, p_shift, gamma)
+    elif regime in ("covariate_shift", "both"):
         p_target = shift_weights(p_source, p_shift, gamma)
     else:
         p_target = p_source.copy()

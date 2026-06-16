@@ -1,0 +1,36 @@
+# Sweep over the support-mismatch regime: privacy-utility tradeoff in a regime
+# where adaptation actually pays off (oracle clearly beats source-only).
+
+dataset: synthetic
+regime: support_mismatch
+
+n_source: 1000
+n_target: 500
+M: 4
+d_latent: 8
+sigma: 0.5
+mean_scale: 4.0
+gamma: 0.9
+source_minority_mass: 0.05
+
+edge_alpha: 0.5
+edge_beta: -2.0
+
+d_max: 10
+B: 3.0
+reweight_rho: 0.001
+
+hidden: 8
+num_layers: 2
+epochs: 80
+lr: 0.01
+weight_decay: 0.005
+dropout: 0.5
+device: cpu
+
+out: dp_ot/outputs/sweep_support_mismatch.csv
+
+sweep:
+  epsilon: [0.1, 0.3, 1.0, 3.0, 10.0]
+  K:       [32]
+  seed:    [0, 1, 2, 3, 4]

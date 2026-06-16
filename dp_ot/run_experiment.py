@@ -45,9 +45,11 @@ DEFAULT_CONFIG = {
     "edge_beta": -2.0,
     "mean_scale": 2.0,
     "seed": 0,
-    # Regime for Experiment 2: "covariate_shift" | "structural_shift" | "both" | "no_shift"
+    # Regime: "covariate_shift" | "structural_shift" | "both" | "no_shift" | "support_mismatch"
     # When set, overrides gamma-based make_source_target_pair with make_regime.
     "regime": None,
+    # support_mismatch: fraction of source mass on the component the target concentrates on
+    "source_minority_mass": 0.05,
     # Twitch-specific
     "twitch_source": "EN",
     "twitch_target": "DE",
@@ -108,7 +110,11 @@ def _load_graphs(cfg: dict) -> tuple:
     )
 
     if regime is not None:
-        G_source, G_target, _, _ = make_regime(regime=regime, gamma=cfg["gamma"], **syn_kwargs)
+        G_source, G_target, _, _ = make_regime(
+            regime=regime, gamma=cfg["gamma"],
+            source_minority_mass=cfg.get("source_minority_mass", 0.05),
+            **syn_kwargs,
+        )
     else:
         G_source, G_target, _, _ = make_source_target_pair(gamma=cfg["gamma"], **syn_kwargs)
 

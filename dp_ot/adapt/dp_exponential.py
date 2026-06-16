@@ -5,26 +5,26 @@ Each target node j independently samples a prototype k with probability:
   Pr[a_j = k] ∝ exp(-epsilon_row * C[j,k] / (2 * Delta_C))
 
 where:
-  C[j,k] = ||s_j - c_k||^2  (squared L2 cost)
+  C[j,k] = ||s_j - c_k||   (L2 distance — NOT squared; see below)
   Delta_C = per-row sensitivity of C[j,k] under edge-DP
   epsilon_row = epsilon / 2  (sequential composition over 2 affected rows per edge)
 
-Sensitivity derivation:
-  When edge (u,v) added/removed, u's summary s_u changes.
+Why L2 distance and not squared distance:
+  The exponential-mechanism score is u(s, k) = -C[j,k]. Its sensitivity is the
+  most one summary can move the score when one edge changes s_j by Delta_s.
+  For C = ||s - c|| (linear), the triangle inequality gives a TIGHT bound:
+    | ||s' - c|| - ||s - c|| | <= ||s' - s|| = Delta_s,
+  independent of the embedding diameter. For C = ||s - c||^2 (squared), the
+  sensitivity instead scales with ||s|| + ||c|| (the diameter), which for
+  bounded summaries is ~100x larger and washes the mechanism out to near-uniform
+  sampling. So we use linear distance: Delta_C = Delta_s.
+
+Sensitivity of one summary under edge-DP (Delta_s):
+  When edge (u,v) is added/removed, u's summary s_u changes.
   The 1-hop mean component changes by at most B/d_max per dimension.
-  Total L2 change of s_u: Delta_s <= sqrt(d * (B/d_max)^2 + (log_deg_change)^2)
-  For features of dimension d_feat:
-    Delta_s_feat  <= sqrt(d_feat) * B / d_max
-    Delta_s_logdeg = |log(1+min(d+1,d_max)) - log(1+min(d,d_max))| <= 1/(1+d)
+    Delta_s_feat   <= sqrt(d_feat) * B / d_max
+    Delta_s_logdeg = |log(1+min(d+1,d_max)) - log(1+min(d,d_max))| <= 1
   Conservative bound: Delta_s <= sqrt(d_feat) * B / d_max + 1
-
-  Sensitivity of C[j,k] = ||s_j - c_k||^2:
-    |C_new - C_old| <= (|s_j_new| + |c_k| + |s_j_old| + |c_k|) * Delta_s
-                    <= 4 * (B_summary + B_centroid) * Delta_s
-  We use B_summary = sqrt(d_feat + d_feat + 1) * B as a loose bound on ||s_j||,
-  and bound ||c_k|| similarly.
-
-  In practice we compute Delta_C from B and d_max directly.
 """
 
 from __future__ import annotations
@@ -63,11 +63,10 @@ def dp_exponential_assign(
 
     # Sensitivity of one summary under edge-DP
     delta_s = np.sqrt(d_feat) * B / max(d_max, 1) + 1.0
-    # Sensitivity of squared-distance cost
-    # ||s-c||^2 changes by at most 4 * (||s|| + ||c||) * Delta_s
-    # Use 4 * 2 * B_bound * Delta_s as conservative upper bound
-    B_bound = np.sqrt(d_summary) * B  # rough bound on ||s_j|| and ||c_k||
-    delta_C = 4.0 * 2.0 * B_bound * delta_s
+    # Sensitivity of the LINEAR-distance cost C[j,k] = ||s_j - c_k||.
+    # By the triangle inequality this is exactly Delta_s, independent of the
+    # embedding diameter (unlike squared distance — see module docstring).
+    delta_C = delta_s
 
     # epsilon_row = epsilon/2 by sequential composition (2 affected rows per edge)
     if epsilon == float("inf") or epsilon <= 0:
@@ -75,8 +74,8 @@ def dp_exponential_assign(
     else:
         epsilon_row = epsilon / 2.0
 
-    # Cost matrix C[j,k] = ||s_j - c_k||^2
-    C = _sq_dists(summaries, centroids)  # (n, K)
+    # Cost matrix C[j,k] = ||s_j - c_k|| (L2 distance)
+    C = np.sqrt(_sq_dists(summaries, centroids))  # (n, K)
 
     # Sample prototype for each node via exponential mechanism (Gumbel-max trick)
     if epsilon_row == float("inf"):
