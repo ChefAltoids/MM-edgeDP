@@ -1,0 +1,44 @@
+# Corrected DGP: balanced-label, misspecified covariate-shift problem.
+# This is the regime where adaptation is supposed to pay off:
+#   - labels stay ~50/50 (component means orthogonal to the label axis), so
+#     AUROC is meaningful and target_oracle opens a real gap over source-only;
+#   - a per-cluster sign flip makes P(Y|Z) XOR-like, so the source-optimal
+#     predictor differs from the target-optimal one;
+#   - a capacity-limited model means reweighting toward the target's clusters
+#     measurably improves target AUROC.
+# Expect: source_only < dp_histogram ~ dp_exponential < oracle < target_oracle,
+# with a clearly POSITIVE oracle gain (check the run's class-balance printout).
+
+dataset: synthetic
+regime: misspec_support      # source under-covers the target's (opposite-flip) clusters
+
+n_source: 1500
+n_target: 600
+M: 6                         # more clusters -> harder for a small model to memorize all flips
+d_latent: 8
+sigma: 0.5
+mean_scale: 2.5              # separated clusters, but not so far that summaries over-clip
+gamma: 0.85                  # target concentrates on the favored (under-covered) clusters
+source_minority_mass: 0.08   # source barely covers them
+label_spread: 3.0            # separable label signal along the label axis
+label_sharpness: 1.5
+
+edge_alpha: 0.5
+edge_beta: -2.0
+
+K: 32
+d_max: 10
+B: 4.0
+reweight_rho: 0.001
+
+# Capacity-limited model so the source-optimal fit differs from target-optimal.
+hidden: 8
+num_layers: 2
+epochs: 60
+lr: 0.01
+weight_decay: 0.01
+dropout: 0.5
+device: cpu
+
+epsilon: 1.0
+seed: 0

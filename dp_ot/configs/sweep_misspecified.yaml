@@ -1,0 +1,39 @@
+# Privacy-utility sweep on the corrected (balanced-label, misspecified) DGP.
+# Run this once a single run of synthetic_misspecified.yaml shows a clearly
+# positive oracle gain — otherwise tune that config first.
+
+dataset: synthetic
+regime: misspec_support
+
+n_source: 1500
+n_target: 600
+M: 6
+d_latent: 8
+sigma: 0.5
+mean_scale: 2.5
+gamma: 0.85
+source_minority_mass: 0.08
+label_spread: 3.0
+label_sharpness: 1.5
+
+edge_alpha: 0.5
+edge_beta: -2.0
+
+d_max: 10
+B: 4.0
+reweight_rho: 0.001
+
+hidden: 8
+num_layers: 2
+epochs: 60
+lr: 0.01
+weight_decay: 0.01
+dropout: 0.5
+device: cpu
+
+out: dp_ot/outputs/sweep_misspecified.csv
+
+sweep:
+  epsilon: [0.1, 0.3, 1.0, 3.0, 10.0]
+  K:       [32]
+  seed:    [0, 1, 2, 3, 4]

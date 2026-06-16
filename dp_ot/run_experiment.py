@@ -21,7 +21,7 @@ import yaml
 # Make dp_ot importable regardless of working directory
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dp_ot.data.synthetic import make_source_target_pair, make_regime
+from dp_ot.data.synthetic import make_source_target_pair, make_regime, make_misspecified_pair
 from dp_ot.data.real_splits import load_twitch_pair, load_ogb_arxiv_temporal
 from dp_ot.models.gnn import train_source_gnn, train_weighted_source_gnn
 from dp_ot.adapt.prototypes import fit_public_prototypes, compute_target_summaries
@@ -46,10 +46,15 @@ DEFAULT_CONFIG = {
     "mean_scale": 2.0,
     "seed": 0,
     # Regime: "covariate_shift" | "structural_shift" | "both" | "no_shift" | "support_mismatch"
-    # When set, overrides gamma-based make_source_target_pair with make_regime.
+    #         | "misspec_covariate" | "misspec_support"
+    # When set, overrides gamma-based make_source_target_pair with make_regime
+    # (or make_misspecified_pair for the misspec_* regimes).
     "regime": None,
-    # support_mismatch: fraction of source mass on the component the target concentrates on
+    # support_mismatch / misspec_support: source mass on the favored component(s)
     "source_minority_mass": 0.05,
+    # misspec_* : balanced-label construction knobs
+    "label_spread": 3.0,
+    "label_sharpness": 1.5,
     # Twitch-specific
     "twitch_source": "EN",
     "twitch_target": "DE",
@@ -109,7 +114,15 @@ def _load_graphs(cfg: dict) -> tuple:
         mean_scale=cfg["mean_scale"],
     )
 
-    if regime is not None:
+    if regime in ("misspec_covariate", "misspec_support"):
+        G_source, G_target, _, _ = make_misspecified_pair(
+            regime=regime, gamma=cfg["gamma"],
+            source_minority_mass=cfg.get("source_minority_mass", 0.08),
+            label_spread=cfg.get("label_spread", 3.0),
+            label_sharpness=cfg.get("label_sharpness", 1.5),
+            **syn_kwargs,
+        )
+    elif regime is not None:
         G_source, G_target, _, _ = make_regime(
             regime=regime, gamma=cfg["gamma"],
             source_minority_mass=cfg.get("source_minority_mass", 0.05),
