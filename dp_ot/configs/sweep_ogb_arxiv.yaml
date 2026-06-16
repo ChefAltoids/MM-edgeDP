@@ -1,0 +1,28 @@
+# Real-data privacy-utility sweep: OGB-arxiv temporal shift (pre-2018 -> 2018+).
+# Stress-tests the method off its synthetic home turf. Slow — each combination
+# retrains GNNs and recomputes KMeans on the full ~170k-node graph; use a GPU
+# and keep the grid modest.
+
+dataset: ogb_arxiv
+ogb_source_before_year: 2018
+ogb_target_from_year: 2018
+ogb_root: data/ogb
+
+d_max: 20
+B: 5.0
+reweight_rho: 0.001
+
+hidden: 128
+num_layers: 2
+epochs: 150
+lr: 0.005
+weight_decay: 0.0005
+dropout: 0.5
+device: cpu
+
+out: dp_ot/outputs/sweep_ogb_arxiv.csv
+
+sweep:
+  epsilon: [0.3, 1.0, 3.0, 10.0]
+  K:       [64]
+  seed:    [0, 1, 2]
