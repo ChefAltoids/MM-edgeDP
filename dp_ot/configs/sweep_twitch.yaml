@@ -1,0 +1,26 @@
+# Sweep: Twitch transfer with epsilon grid (Experiment 6 variant).
+
+dataset: twitch
+twitch_source: EN
+twitch_target: DE
+twitch_root: data/twitch
+
+K: 64
+d_max: 20
+B: 5.0
+reweight_rho: 0.001
+
+hidden: 128
+num_layers: 2
+epochs: 300
+lr: 0.005
+weight_decay: 0.0005
+dropout: 0.5
+device: cpu
+
+out: dp_ot/outputs/sweep_twitch.csv
+
+sweep:
+  epsilon: [0.1, 0.3, 1.0, 3.0, 10.0]
+  K:       [32, 64, 128]
+  seed:    [0, 1, 2, 3, 4]
