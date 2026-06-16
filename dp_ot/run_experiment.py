@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dp_ot.data.synthetic import make_source_target_pair, make_regime
 from dp_ot.data.real_splits import load_twitch_pair, load_ogb_arxiv_temporal
 from dp_ot.models.gnn import train_source_gnn, train_weighted_source_gnn
-from dp_ot.adapt.prototypes import embed_nodes, fit_public_prototypes, compute_target_summaries
+from dp_ot.adapt.prototypes import fit_public_prototypes, compute_target_summaries
 from dp_ot.adapt.dp_histogram import dp_histogram_assign, nonprivate_histogram
 from dp_ot.adapt.dp_exponential import dp_exponential_assign
 from dp_ot.adapt.reweighting import reweight_source_nodes, uniform_weights
@@ -45,9 +45,11 @@ DEFAULT_CONFIG = {
     "edge_beta": -2.0,
     "mean_scale": 2.0,
     "seed": 0,
-    # Regime for Experiment 2: "covariate_shift" | "structural_shift" | "both" | "no_shift"
+    # Regime: "covariate_shift" | "structural_shift" | "both" | "no_shift" | "support_mismatch"
     # When set, overrides gamma-based make_source_target_pair with make_regime.
     "regime": None,
+    # support_mismatch: fraction of source mass on the component the target concentrates on
+    "source_minority_mass": 0.05,
     # Twitch-specific
     "twitch_source": "EN",
     "twitch_target": "DE",
@@ -108,7 +110,11 @@ def _load_graphs(cfg: dict) -> tuple:
     )
 
     if regime is not None:
-        G_source, G_target, _, _ = make_regime(regime=regime, gamma=cfg["gamma"], **syn_kwargs)
+        G_source, G_target, _, _ = make_regime(
+            regime=regime, gamma=cfg["gamma"],
+            source_minority_mass=cfg.get("source_minority_mass", 0.05),
+            **syn_kwargs,
+        )
     else:
         G_source, G_target, _, _ = make_source_target_pair(gamma=cfg["gamma"], **syn_kwargs)
 
@@ -142,15 +148,18 @@ def run_experiment(config: dict) -> dict[str, dict]:
         device=cfg["device"],
     )
 
-    # --- Train source GNN (public, zero privacy cost) ---
-    print("  Training source GNN...", flush=True)
-    source_model = train_source_gnn(G_source, seed=seed, **gnn_kwargs)
-
     # --- Build public prototypes ---
+    # Prototypes must live in the SAME bounded-summary space as the private
+    # target nodes: an edge-DP target node can only be represented by its
+    # low-sensitivity summary (clipped features + capped 1-hop mean + log-deg),
+    # not by a GNN embedding (the GNN can't be run privately on G_T). So we
+    # cluster the SOURCE summaries, and assign both source and target nodes to
+    # those centroids. This keeps the dp_exponential sensitivity bound (written
+    # in terms of B, d_max) valid.
     print("  Building prototypes...", flush=True)
-    Z_source = embed_nodes(source_model, G_source, device=cfg["device"])
     K = cfg["K"]
-    centroids, source_assignments, alpha_source = fit_public_prototypes(Z_source, K, seed=seed)
+    source_summaries = compute_target_summaries(G_source, d_max=cfg["d_max"], B=cfg["B"])
+    centroids, source_assignments, alpha_source = fit_public_prototypes(source_summaries, K, seed=seed)
 
     # --- Compute target summaries (DP-accessible representation of G_T) ---
     print("  Computing target summaries...", flush=True)

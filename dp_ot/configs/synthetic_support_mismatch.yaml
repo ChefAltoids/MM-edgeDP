@@ -1,0 +1,36 @@
+# Support-mismatch regime: the regime where importance weighting actually helps.
+# Source barely covers the component the target concentrates on, and the model
+# is capacity-limited so it cannot fit the under-represented region for free.
+# Goal: a clear oracle-over-source gap that the DP methods can then recover.
+
+dataset: synthetic
+regime: support_mismatch
+
+n_source: 1000
+n_target: 500
+M: 4
+d_latent: 8
+sigma: 0.5
+mean_scale: 4.0            # separated components -> the under-fit region matters
+gamma: 0.9                 # target concentrates hard on the last component
+source_minority_mass: 0.05 # source puts only 5% there
+
+edge_alpha: 0.5
+edge_beta: -2.0
+
+K: 32
+d_max: 10
+B: 3.0
+reweight_rho: 0.001
+
+# Capacity-limited model: a flexible GNN would fit the minority region anyway.
+hidden: 8
+num_layers: 2
+epochs: 80
+lr: 0.01
+weight_decay: 0.005
+dropout: 0.5
+device: cpu
+
+epsilon: 1.0
+seed: 0
