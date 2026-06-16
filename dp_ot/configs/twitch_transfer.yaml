@@ -1,0 +1,25 @@
+# Experiment 6: Twitch semi-synthetic transfer.
+# Source: EN (English Twitch), Target: DE (German Twitch).
+# Adapt epsilon sweep to assess privacy-utility tradeoff on real data.
+
+dataset: twitch
+twitch_source: EN
+twitch_target: DE
+twitch_root: data/twitch
+
+# Prototypes: larger K for real graphs with more nodes
+K: 64
+d_max: 20
+B: 5.0
+reweight_rho: 0.001
+
+hidden: 128
+num_layers: 2
+epochs: 300
+lr: 0.005
+weight_decay: 0.0005
+dropout: 0.5
+device: cpu
+
+epsilon: 1.0
+seed: 0

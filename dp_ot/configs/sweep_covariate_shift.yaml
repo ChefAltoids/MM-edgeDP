@@ -1,0 +1,31 @@
+# Sweep config: Experiment 1 (controlled covariate shift).
+# The `sweep` block defines the grid; everything else is the base config.
+
+n_source: 1000
+n_target: 500
+M: 4
+d_latent: 8
+sigma: 0.5
+edge_alpha: 0.5
+edge_beta: -2.0
+mean_scale: 2.0
+
+d_max: 10
+B: 3.0
+reweight_rho: 0.001
+
+hidden: 64
+num_layers: 2
+epochs: 200
+lr: 0.01
+weight_decay: 0.0005
+dropout: 0.5
+device: cpu
+
+out: dp_ot/outputs/sweep_covariate_shift.csv
+
+sweep:
+  epsilon: [0.1, 0.3, 1.0, 3.0, 10.0]
+  gamma:   [0.0, 0.25, 0.5, 0.75, 1.0]
+  K:       [16, 32, 64]
+  seed:    [0, 1, 2, 3, 4]
