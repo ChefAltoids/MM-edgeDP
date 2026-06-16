@@ -24,8 +24,8 @@ env/
 .DS_Store
 .vscode/
 
-# Project data
-data/
+# Project data (downloaded datasets at repo root only — NOT the dp_ot/data source package)
+/data/
 
 # Generated run artifacts
 outputs/.gitkeep
