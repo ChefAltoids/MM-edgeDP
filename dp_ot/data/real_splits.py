@@ -88,7 +88,21 @@ def load_ogb_arxiv_temporal(
     from ogb.nodeproppred import PygNodePropPredDataset
     from torch_geometric.transforms import ToUndirected
 
-    dataset = PygNodePropPredDataset("ogbn-arxiv", root=root, transform=ToUndirected())
+    # PyTorch >=2.6 defaults torch.load(weights_only=True), which cannot unpickle
+    # OGB's cached PyG graph (custom classes such as DataEdgeAttr). The dataset
+    # comes from the official OGB host (snap.stanford.edu), so loading with
+    # weights_only=False is safe. Patch torch.load only around construction.
+    _orig_load = torch.load
+
+    def _compat_load(*args, **kwargs):
+        kwargs.setdefault("weights_only", False)
+        return _orig_load(*args, **kwargs)
+
+    torch.load = _compat_load
+    try:
+        dataset = PygNodePropPredDataset("ogbn-arxiv", root=root, transform=ToUndirected())
+    finally:
+        torch.load = _orig_load
     data = dataset[0]
 
     # Node years are stored in data.node_year (shape: n×1)
