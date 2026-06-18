@@ -17,9 +17,14 @@ def evaluate(
     model: "GraphSAGEModel",
     data: Data,
     device: str = "cpu",
+    mask: np.ndarray | None = None,
 ) -> dict[str, float]:
     """
     Inductive evaluation: run model forward pass on data's graph structure.
+
+    If `mask` (a boolean array over nodes) is given, metrics are computed only on
+    those nodes — used to score every method on the SAME held-out target test set
+    so `target_oracle` is a fair upper bound (it is trained on the complement).
 
     Returns dict with keys: acc, auroc, f1
     """
@@ -32,6 +37,9 @@ def evaluate(
         preds = logits.argmax(dim=-1).cpu().numpy()
 
     y = data.y.cpu().numpy()
+    if mask is not None:
+        mask = np.asarray(mask, dtype=bool)
+        y, probs, preds = y[mask], probs[mask], preds[mask]
     acc = float(accuracy_score(y, preds))
     f1 = float(f1_score(y, preds, average="macro", zero_division=0))
 

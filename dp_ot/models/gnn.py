@@ -66,6 +66,7 @@ def _train_loop(
     lr: float,
     weight_decay: float,
     device: torch.device,
+    train_mask: Tensor | None = None,
 ) -> GraphSAGEModel:
     model = model.to(device)
     x = data.x.to(device)
@@ -73,6 +74,8 @@ def _train_loop(
     y = data.y.to(device)
     if node_weights is not None:
         node_weights = node_weights.to(device)
+    if train_mask is not None:
+        train_mask = torch.as_tensor(train_mask, dtype=torch.bool, device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -82,9 +85,10 @@ def _train_loop(
         logits = model(x, edge_index)
         per_node_loss = F.cross_entropy(logits, y, reduction="none")
         if node_weights is not None:
-            loss = (node_weights * per_node_loss).mean()
-        else:
-            loss = per_node_loss.mean()
+            per_node_loss = node_weights * per_node_loss
+        # Transductive training: message passing uses the full graph, but the loss
+        # is restricted to train_mask so held-out target nodes stay unseen.
+        loss = per_node_loss[train_mask].mean() if train_mask is not None else per_node_loss.mean()
         loss.backward()
         optimizer.step()
 
@@ -103,15 +107,17 @@ def train_source_gnn(
     dropout: float = 0.5,
     seed: int = 0,
     device: str = "cpu",
+    train_mask: np.ndarray | None = None,
 ) -> GraphSAGEModel:
-    """Train a GraphSAGE model on source graph with uniform (unweighted) loss."""
+    """Train a GraphSAGE model with uniform loss. If train_mask is given, the loss
+    is restricted to those nodes (e.g. the target train split for target_oracle)."""
     set_seed(seed)
     in_channels = data.x.shape[1]
     num_classes = int(data.y.max().item()) + 1
     model = GraphSAGEModel(in_channels, hidden, num_classes, num_layers, dropout)
     dev = torch.device(device)
     return _train_loop(model, data, node_weights=None, epochs=epochs, lr=lr,
-                       weight_decay=weight_decay, device=dev)
+                       weight_decay=weight_decay, device=dev, train_mask=train_mask)
 
 
 def train_weighted_source_gnn(

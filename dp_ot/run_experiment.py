@@ -81,6 +81,11 @@ DEFAULT_CONFIG = {
     "fgw_alpha": 0.5,
     "K_target": None,
     "fgw_n_init": 10,
+    # Held-out target evaluation: fraction of target nodes reserved as the test
+    # set. target_oracle trains only on the complement; ALL methods are scored on
+    # this same held-out set so target_oracle is a fair upper bound (fixes the
+    # memorization artifact where target_oracle hit AUROC 1.0).
+    "target_test_frac": 0.3,
     # Privacy
     "epsilon": 1.0,
     # GNN training
@@ -204,13 +209,24 @@ def run_experiment(config: dict) -> dict[str, dict]:
     # True (non-private) target prototype mass for oracle and error tracking
     alpha_true = nonprivate_histogram(summaries, centroids)
 
+    # --- Held-out target test split ---
+    # Every method is scored on this same held-out set; target_oracle trains only
+    # on the complement so it is a fair upper bound (not a memorizing AUROC=1.0).
+    # The DP/oracle mass estimates still use the FULL target graph — they consume
+    # no labels, so the held-out test labels remain unseen.
+    n_t = G_target.num_nodes
+    _rng = np.random.default_rng(seed)
+    test_mask = np.zeros(n_t, dtype=bool)
+    test_mask[_rng.permutation(n_t)[: int(round(cfg["target_test_frac"] * n_t))]] = True
+    train_mask = ~test_mask
+
     results = {}
 
     # === Method 1: Source-only ===
     print("  source_only...", flush=True)
     w = uniform_weights(G_source.num_nodes)
     model_so = train_weighted_source_gnn(G_source, w, seed=seed, **gnn_kwargs)
-    metrics_so = evaluate(model_so, G_target, device=cfg["device"])
+    metrics_so = evaluate(model_so, G_target, device=cfg["device"], mask=test_mask)
     metrics_so["proto_l1_error"] = float("nan")
     results["source_only"] = metrics_so
 
@@ -218,7 +234,7 @@ def run_experiment(config: dict) -> dict[str, dict]:
     print("  oracle...", flush=True)
     w_oracle = reweight_source_nodes(source_assignments, alpha_source, alpha_true, rho=cfg["reweight_rho"])
     model_oracle = train_weighted_source_gnn(G_source, w_oracle, seed=seed, **gnn_kwargs)
-    metrics_oracle = evaluate(model_oracle, G_target, device=cfg["device"])
+    metrics_oracle = evaluate(model_oracle, G_target, device=cfg["device"], mask=test_mask)
     metrics_oracle["proto_l1_error"] = 0.0
     results["oracle"] = metrics_oracle
 
@@ -239,7 +255,7 @@ def run_experiment(config: dict) -> dict[str, dict]:
         )
         w_fgw = reweight_source_nodes(source_assignments, alpha_source, alpha_fgw, rho=cfg["reweight_rho"])
         model_fgw = train_weighted_source_gnn(G_source, w_fgw, seed=seed, **gnn_kwargs)
-        metrics_fgw = evaluate(model_fgw, G_target, device=cfg["device"])
+        metrics_fgw = evaluate(model_fgw, G_target, device=cfg["device"], mask=test_mask)
         # Report the FGW correspondence cost (lower = cleaner alignment) in the
         # proto column; this is a coupling-quality diagnostic, not an L1 error.
         metrics_fgw["proto_l1_error"] = float(fgw_cost)
@@ -250,7 +266,7 @@ def run_experiment(config: dict) -> dict[str, dict]:
     alpha_hist = dp_histogram_assign(summaries, centroids, epsilon=cfg["epsilon"], seed=seed)
     w_hist = reweight_source_nodes(source_assignments, alpha_source, alpha_hist, rho=cfg["reweight_rho"])
     model_hist = train_weighted_source_gnn(G_source, w_hist, seed=seed, **gnn_kwargs)
-    metrics_hist = evaluate(model_hist, G_target, device=cfg["device"])
+    metrics_hist = evaluate(model_hist, G_target, device=cfg["device"], mask=test_mask)
     metrics_hist["proto_l1_error"] = prototype_l1_error(alpha_hist, alpha_true)
     results["dp_histogram"] = metrics_hist
 
@@ -265,14 +281,14 @@ def run_experiment(config: dict) -> dict[str, dict]:
     )
     w_exp = reweight_source_nodes(source_assignments, alpha_source, alpha_exp, rho=cfg["reweight_rho"])
     model_exp = train_weighted_source_gnn(G_source, w_exp, seed=seed, **gnn_kwargs)
-    metrics_exp = evaluate(model_exp, G_target, device=cfg["device"])
+    metrics_exp = evaluate(model_exp, G_target, device=cfg["device"], mask=test_mask)
     metrics_exp["proto_l1_error"] = prototype_l1_error(alpha_exp, alpha_true)
     results["dp_exponential"] = metrics_exp
 
     # === Method 5: Target oracle (train on G_T directly, upper bound) ===
     print("  target_oracle...", flush=True)
-    model_tgt = train_source_gnn(G_target, seed=seed, **gnn_kwargs)
-    metrics_tgt = evaluate(model_tgt, G_target, device=cfg["device"])
+    model_tgt = train_source_gnn(G_target, seed=seed, train_mask=train_mask, **gnn_kwargs)
+    metrics_tgt = evaluate(model_tgt, G_target, device=cfg["device"], mask=test_mask)
     metrics_tgt["proto_l1_error"] = float("nan")
     results["target_oracle"] = metrics_tgt
 
