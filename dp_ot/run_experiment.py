@@ -25,6 +25,7 @@ from dp_ot.data.synthetic import make_source_target_pair, make_regime, make_miss
 from dp_ot.data.real_splits import load_twitch_pair, load_ogb_arxiv_temporal, load_graph_da_pair
 from dp_ot.models.gnn import train_source_gnn, train_weighted_source_gnn
 from dp_ot.adapt.prototypes import fit_public_prototypes, compute_target_summaries
+from dp_ot.adapt.fgw_align import fit_target_prototypes, fgw_aligned_target_mass
 from dp_ot.adapt.dp_histogram import dp_histogram_assign, nonprivate_histogram
 from dp_ot.adapt.dp_exponential import dp_exponential_assign
 from dp_ot.adapt.reweighting import reweight_source_nodes, uniform_weights
@@ -73,6 +74,13 @@ DEFAULT_CONFIG = {
     "K": 32,
     "d_max": 10,      # degree cap for target summaries
     "B": 3.0,         # feature clip bound
+    # FGW alignment diagnostic (#1): set run_fgw=True to add the oracle_fgw method.
+    # fgw_alpha balances feature vs structure (1.0 = pure structure / isometry-
+    # invariant; lower leans on shared features). K_target=None reuses K.
+    "run_fgw": False,
+    "fgw_alpha": 0.5,
+    "K_target": None,
+    "fgw_n_init": 10,
     # Privacy
     "epsilon": 1.0,
     # GNN training
@@ -213,6 +221,29 @@ def run_experiment(config: dict) -> dict[str, dict]:
     metrics_oracle = evaluate(model_oracle, G_target, device=cfg["device"])
     metrics_oracle["proto_l1_error"] = 0.0
     results["oracle"] = metrics_oracle
+
+    # === Method 2b: FGW-aligned oracle (non-private alignment diagnostic, #1) ===
+    # Drops the shared-frame assumption: fit target prototypes in their OWN frame,
+    # FGW-couple them to the source prototypes (correspondence via uniform
+    # marginals so geometry — not the mass shift — drives the match), push the
+    # true target mass through, then reweight. Compared against `oracle` this
+    # tells us whether the residual gap is frame MISALIGNMENT (FGW gains where the
+    # shared-frame oracle did not) or genuine concept shift (neither gains).
+    if cfg.get("run_fgw"):
+        print("  oracle_fgw...", flush=True)
+        K_t = cfg.get("K_target") or K
+        centroids_t, alpha_target_t = fit_target_prototypes(summaries, K_t, seed=seed)
+        alpha_fgw, _T, fgw_cost = fgw_aligned_target_mass(
+            centroids, centroids_t, alpha_target_t,
+            fusion_alpha=cfg["fgw_alpha"], n_init=cfg["fgw_n_init"], seed=seed,
+        )
+        w_fgw = reweight_source_nodes(source_assignments, alpha_source, alpha_fgw, rho=cfg["reweight_rho"])
+        model_fgw = train_weighted_source_gnn(G_source, w_fgw, seed=seed, **gnn_kwargs)
+        metrics_fgw = evaluate(model_fgw, G_target, device=cfg["device"])
+        # Report the FGW correspondence cost (lower = cleaner alignment) in the
+        # proto column; this is a coupling-quality diagnostic, not an L1 error.
+        metrics_fgw["proto_l1_error"] = float(fgw_cost)
+        results["oracle_fgw"] = metrics_fgw
 
     # === Method 3: DP Histogram ===
     print("  dp_histogram...", flush=True)

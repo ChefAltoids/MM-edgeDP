@@ -29,3 +29,5 @@ env/
 
 # Generated run artifacts
 outputs/.gitkeep
+# local FGW validation venv (torch-free)
+.venv_fgw/

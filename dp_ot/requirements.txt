@@ -6,5 +6,5 @@ scikit-learn>=1.3
 pyyaml>=6.0
 matplotlib>=3.7
 pandas>=2.0
-# Optional: for future OT coupling experiments
-# pot>=0.9
+# Optimal transport — required for the FGW alignment diagnostic (adapt/fgw_align.py)
+POT>=0.9

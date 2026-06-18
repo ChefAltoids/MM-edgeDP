@@ -26,3 +26,15 @@ device: cpu
 
 epsilon: 1.0
 seed: 0
+
+# FGW alignment diagnostic (#1): adds the oracle_fgw method. Compare
+# oracle_fgw vs oracle vs source_only. If oracle_fgw > source_only where
+# oracle did not, the residual ACM->DBLP gap was frame MISALIGNMENT;
+# if neither beats source_only, it confirms genuine concept shift.
+# fgw_alpha=0.5 uses the shared BoW features AND relational structure; the
+# correspondence is estimated with uniform marginals so the mass shift can't
+# corrupt the geometric match (see tests/test_fgw_alignment.py).
+run_fgw: true
+fgw_alpha: 0.5
+K_target: null
+fgw_n_init: 10
