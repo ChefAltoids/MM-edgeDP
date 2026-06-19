@@ -93,20 +93,29 @@ The canonical covariate-shift graph-DA benchmark (shared 6775-dim features,
 shared 5-class labels).
 
 - Shift profile: **covariate-shift-dominant** — feature MMD² = 0.093 (highest
-  seen), label-dist L1 = 0.118 (small). The *right* kind of shift.
-- Result (ε=1): source 0.887, **oracle 0.878 (−0.009)**, dp_hist 0.877
-  (proto_l1 0.040), dp_exp 0.876, target_oracle 1.000\*.
-- Reading: despite real covariate shift, perfectly-weighted source gives **no**
-  gain. The residual domain gap is **conditional/concept shift** (`P(Y|X)`
-  differs between ACM and DBLP), which importance weighting provably cannot fix.
-  This is consistent with the graph-DA literature, where SOTA methods use
-  adversarial feature alignment rather than reweighting.
+  seen), label-dist L1 = 0.118 (small). The *right* kind of shift on paper.
+- Result (ε=1, held-out target split): source 0.876, oracle 0.879 (+0.003),
+  **oracle_fgw 0.878** (FGW verdict: "frames already aligned"), dp_hist 0.878
+  (proto_l1 0.040), dp_exp 0.874, **target_oracle 0.943** (honest split — a real
+  ~6.7-pt headroom over source).
+- Reading (**revised** — earlier drafts mis-attributed this to concept shift):
+  the gap is **structural, not concept shift.** A held-out X→Y probe (logistic
+  *and* MLP) transfers ACM→DBLP with **concept_gap ≈ 0** (logistic +0.009, MLP
+  −0.005): feature `P(Y|X)` is *shared*, so it is **not** concept shift. But the
+  feature-only probe caps at AUROC ≈ 0.75 while the GNN `target_oracle` reaches
+  0.943 — the recoverable signal lives in **graph structure** (target-specific
+  topology, only learned by training on the target graph). Covariate reweighting
+  (`oracle`) and frame alignment (`oracle_fgw`) recover ~none of it, because both
+  reweight/realign the *source training distribution* and structural gain must be
+  learned on *target edges* — marginal source reweighting cannot inject target
+  structure. FGW additionally **rules out frame misalignment** as the cause (it
+  matches `oracle`, no gain). Consistent with the graph-DA literature, where SOTA
+  methods align *structure/representations* (UDAGCN/AdaGCN), not reweight examples.
 
-\* **Measurement caveat:** `target_oracle` is trained and evaluated on the same
-target nodes (no split); with near-deterministic BoW features it memorizes the
-graph and reports AUROC 1.0. It is **not** a fair upper bound and should use a
-target train/test split. The clean comparison is `source_only` vs `oracle`, both
-evaluated on the held-out target graph.
+The earlier `target_oracle = 1.0` was a **memorization artifact** (trained and
+evaluated on the same nodes, near-deterministic BoW). Fixed by a held-out target
+split: every method is now scored on the same held-out target nodes and
+`target_oracle` (0.943) is an honest ceiling.
 
 ## 6. Properties that hold on real data
 
@@ -124,24 +133,38 @@ evaluated on the held-out target graph.
   (demonstrated on synthetic), and the **histogram robustly dominates the
   exponential mechanism** for mass estimation.
 - The **positive claim is currently synthetic-only.** Both real benchmarks fall
-  outside the method's scope: OGB-arxiv is label-prior shift; ACM/DBLP carries
-  concept shift. Real graph shifts are rarely the covariate-only kind the method
-  needs.
+  outside the method's scope: OGB-arxiv is label-prior shift *with no headroom*
+  (honest `target_oracle` 0.9415 ≈ source 0.9362 — not adaptable by anything);
+  ACM/DBLP has real headroom but it is **structural shift** — feature `P(Y|X)` is
+  *shared* (held-out probe, gap ≈ 0), and the gain lives in target-specific graph
+  structure that reweighting cannot transfer. Real graph shifts are rarely the
+  covariate-mass kind the method needs.
 - Honest framing of the contribution: *a DP-by-post-processing, covariate-shift
   correction for graphs that provably recovers the non-private gain when
   covariate shift dominates, degrades gracefully (no harm) and self-diagnoses
-  when it does not — with a characterization of why standard graph-DA benchmarks
-  (label/concept shift) lie outside its scope.*
+  when it does not — plus a DP-feasibility **screening** suite (recoverable-gap
+  oracle, FGW misalignment control, concept-shift probe, honest target split)
+  that shows standard graph-DA benchmarks (label-prior, and structural/topology
+  shift) lie outside its scope.*
 
 ## 8. Next steps
 
-1. **Fix `target_oracle`** to use a target train/test split (honest upper bound on
-   all datasets).
-2. **Add a covariate-vs-concept-shift diagnostic** — train held-out X→Y probes on
-   source and target; the transfer gap quantifies the *irreducible* concept-shift
-   component and screens a dataset for whether the method *could* help before
-   running the full pipeline.
-3. Replicate synthetic with seeds + the capacity sweep (`hidden ∈ {4,8,16,32}`) to
+1. ✅ **Honest `target_oracle` split** — done. Held-out target test set; all
+   methods scored on it (`run_experiment` `target_test_frac`, default 0.3).
+   Revealed: OGB has ~0 headroom; ACM/DBLP has a real ~6.7-pt structural headroom.
+2. ✅ **Shift-decomposition diagnostics** — done. (a) **FGW alignment**
+   (`adapt/fgw_align.py`) rules out frame *misalignment* (`oracle_fgw ≈ oracle`).
+   (b) **Concept-shift probe** (`eval/diagnostics.py`, logistic + MLP) shows
+   feature `P(Y|X)` is *shared* (gap ≈ 0) → the ACM/DBLP gap is **structural**,
+   not concept shift. *Open sub-step:* rerun the probe on the **summary** space
+   (clipped X + 1-hop mean + log-deg) to split structural-*covariate* from
+   structural-*concept* shift — wired into `colab_diagnostics.ipynb`.
+3. **Structural adaptation under DP (new direction).** The recoverable signal is
+   target graph *structure*, which is DP-accessible **without labels** (unlike
+   concept shift). A DP-GAP-style approach (perturb the target aggregation once,
+   post-process downstream) keeps the post-processing boundary while pointing at
+   the actual headroom. Open: unsupervised structural alignment under DP.
+4. Replicate synthetic with seeds + the capacity sweep (`hidden ∈ {4,8,16,32}`) to
    show the misspecification gap open and close.
 
 ---
@@ -149,11 +172,16 @@ evaluated on the held-out target graph.
 ### Implementation notes
 
 - Package: `dp_ot/` — `data/` (synthetic generator + real loaders),
-  `models/gnn.py` (GraphSAGE, weighted loss), `adapt/` (prototypes, DP
-  mechanisms, reweighting), `eval/` (metrics, plots), `run_experiment.py`,
-  `sweep.py`.
+  `models/gnn.py` (GraphSAGE, weighted loss, held-out `train_mask`), `adapt/`
+  (prototypes, DP mechanisms, reweighting, `fgw_align.py` FGW alignment), `eval/`
+  (metrics with held-out `mask`, plots, `diagnostics.py` concept-shift probe),
+  `run_experiment.py`, `sweep.py`.
 - Notebooks: `colab_experiments.ipynb` (synthetic), `colab_real_data.ipynb`
-  (OGB-arxiv + ACM/DBLP).
+  (OGB-arxiv + ACM/DBLP, full pipeline), `colab_diagnostics.ipynb` (fast — the
+  concept-shift probe + prototype-level FGW read, no GNN training).
+- Diagnostics are torch-free (numpy/sklearn/POT) and unit-validated:
+  `tests/test_fgw_alignment.py` (rotation recovery), `tests/test_concept_shift.py`
+  (flipped-conditional vs covariate-only controls). POT is now a hard dependency.
 - Incidental fixes along the way: a `.gitignore` `data/` rule was silently
   excluding the `dp_ot/data/` *source* package (anchored to `/data/`); OGB-arxiv
   needs `torch.load(weights_only=False)` under PyTorch ≥2.6; the dead Twitch host
