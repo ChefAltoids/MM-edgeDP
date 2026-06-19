@@ -98,19 +98,49 @@ shared 5-class labels).
   **oracle_fgw 0.878** (FGW verdict: "frames already aligned"), dp_hist 0.878
   (proto_l1 0.040), dp_exp 0.874, **target_oracle 0.943** (honest split — a real
   ~6.7-pt headroom over source).
-- Reading (**revised** — earlier drafts mis-attributed this to concept shift):
-  the gap is **structural, not concept shift.** A held-out X→Y probe (logistic
-  *and* MLP) transfers ACM→DBLP with **concept_gap ≈ 0** (logistic +0.009, MLP
-  −0.005): feature `P(Y|X)` is *shared*, so it is **not** concept shift. But the
-  feature-only probe caps at AUROC ≈ 0.75 while the GNN `target_oracle` reaches
-  0.943 — the recoverable signal lives in **graph structure** (target-specific
-  topology, only learned by training on the target graph). Covariate reweighting
-  (`oracle`) and frame alignment (`oracle_fgw`) recover ~none of it, because both
-  reweight/realign the *source training distribution* and structural gain must be
-  learned on *target edges* — marginal source reweighting cannot inject target
-  structure. FGW additionally **rules out frame misalignment** as the cause (it
-  matches `oracle`, no gain). Consistent with the graph-DA literature, where SOTA
-  methods align *structure/representations* (UDAGCN/AdaGCN), not reweight examples.
+- Reading (**revised twice** — earlier drafts said concept shift, then
+  "structural"; the precise diagnosis is **structural *concept* shift**). Two
+  probes localize it:
+  - **Raw-feature probe:** logistic/MLP X→Y transfers with **concept_gap ≈ 0**
+    (logistic +0.009, MLP −0.005). The **feature→label** map is *shared* — it is
+    **not** feature concept shift.
+  - **Summary probe** (features + 1-hop mean + log-deg — the space the prototypes
+    live in): a **large** gap, **logistic +0.072, MLP +0.103**. Because the *MLP*
+    gap is *larger* than the linear one, this is not a linear artifact — a target-
+    trained conditional genuinely beats the transferred one. So the
+    **structure→label** map *differs* across domains.
+  Together: ACM and DBLP share how bag-of-words maps to topic, but differ in how
+  *citation structure* maps to topic — a **structural concept shift**. That is
+  why `oracle` (covariate mass), `oracle_fgw` (frame alignment), and any
+  marginal-over-structure method fail: aligning the structural *marginal* cannot
+  fix a structural *conditional* difference. FGW found a clean structural
+  *correspondence* (cost 0.30, peak 1.0) yet recovered no gain — consistent, and
+  it argues against mere disjoint structural support. Consistent with the graph-DA
+  literature, where SOTA aligns *learned representations* (UDAGCN/AdaGCN), not
+  marginals.
+
+- **Scope of the claim (important):** the concept shift is measured in a *fixed*
+  representation (the hand-crafted 1-hop summary). A *learned* domain-invariant
+  representation might still align the conditional — that is exactly what
+  adversarial graph-DA does, unsupervised on target, and where the ~6.7-pt gap is
+  realistically recovered. So the correct statement is **"outside the reach of any
+  fixed-representation post-processing method," not "irreducible."** Reaching it
+  needs DP *representation learning* on the private target graph — a different,
+  harder project that abandons the post-processing boundary.
+
+- **Contrast with OGB (the probe distinguishes the two structural sub-types):**
+  OGB's summary probe shows a *small* gap with **MLP ≤ logistic** (0.008 vs 0.015)
+  → structural-*covariate* shift (statistics differ, P(Y|structure) shared).
+  ACM/DBLP shows a *large* gap with **MLP ≥ logistic** → structural-*concept*
+  shift. Same diagnostic, opposite verdict.
+
+- **Why depth won't rescue it under DP:** the recoverable signal lives in deeper
+  structure, but edge-DP sensitivity grows ~`d_max` per hop (1-hop perturbs 2
+  nodes per edge → L1-sensitivity 4; 2-hop perturbs ~`2·d_max` nodes →
+  sensitivity `O(d_max)`; K-hop ~`d_max^{K−1}`). So the headroom is **doubly out
+  of reach**: outside fixed-representation post-processing *and* privacy-
+  prohibitive to capture at the depth where it lives (this is why GAP perturbs
+  per-hop and caps depth).
 
 The earlier `target_oracle = 1.0` was a **memorization artifact** (trained and
 evaluated on the same nodes, near-deterministic BoW). Fixed by a held-out target
@@ -135,10 +165,12 @@ split: every method is now scored on the same held-out target nodes and
 - The **positive claim is currently synthetic-only.** Both real benchmarks fall
   outside the method's scope: OGB-arxiv is label-prior shift *with no headroom*
   (honest `target_oracle` 0.9415 ≈ source 0.9362 — not adaptable by anything);
-  ACM/DBLP has real headroom but it is **structural shift** — feature `P(Y|X)` is
-  *shared* (held-out probe, gap ≈ 0), and the gain lives in target-specific graph
-  structure that reweighting cannot transfer. Real graph shifts are rarely the
-  covariate-mass kind the method needs.
+  ACM/DBLP has real headroom but it is **structural *concept* shift** — the
+  feature→label map is *shared* (raw probe gap ≈ 0) while the structure→label map
+  *differs* (summary probe gap +0.07/+0.10, MLP ≥ logistic), so no marginal-over-
+  structure method (covariate reweighting, FGW, or DP-GAP-style structural
+  alignment) can recover it. Real graph shifts are rarely the covariate-mass kind
+  the method needs.
 - Honest framing of the contribution: *a DP-by-post-processing, covariate-shift
   correction for graphs that provably recovers the non-private gain when
   covariate shift dominates, degrades gracefully (no harm) and self-diagnoses
@@ -152,18 +184,26 @@ split: every method is now scored on the same held-out target nodes and
 1. ✅ **Honest `target_oracle` split** — done. Held-out target test set; all
    methods scored on it (`run_experiment` `target_test_frac`, default 0.3).
    Revealed: OGB has ~0 headroom; ACM/DBLP has a real ~6.7-pt structural headroom.
-2. ✅ **Shift-decomposition diagnostics** — done. (a) **FGW alignment**
-   (`adapt/fgw_align.py`) rules out frame *misalignment* (`oracle_fgw ≈ oracle`).
-   (b) **Concept-shift probe** (`eval/diagnostics.py`, logistic + MLP) shows
-   feature `P(Y|X)` is *shared* (gap ≈ 0) → the ACM/DBLP gap is **structural**,
-   not concept shift. *Open sub-step:* rerun the probe on the **summary** space
-   (clipped X + 1-hop mean + log-deg) to split structural-*covariate* from
-   structural-*concept* shift — wired into `colab_diagnostics.ipynb`.
-3. **Structural adaptation under DP (new direction).** The recoverable signal is
-   target graph *structure*, which is DP-accessible **without labels** (unlike
-   concept shift). A DP-GAP-style approach (perturb the target aggregation once,
-   post-process downstream) keeps the post-processing boundary while pointing at
-   the actual headroom. Open: unsupervised structural alignment under DP.
+2. ✅ **Shift-decomposition diagnostics** — done, and fully resolved. (a) **FGW
+   alignment** (`adapt/fgw_align.py`) rules out frame *misalignment* (`oracle_fgw
+   ≈ oracle`). (b) **Concept-shift probe** (`eval/diagnostics.py`, logistic + MLP)
+   on raw features (gap ≈ 0 → feature→label map shared) and on the summary space
+   (gap +0.07/+0.10, MLP ≥ logistic → structure→label map differs) pins the
+   ACM/DBLP gap as **structural *concept* shift**. OGB by contrast is structural-
+   *covariate* (summary gap small, MLP ≤ logistic). Both wired into
+   `colab_diagnostics.ipynb`.
+3. **Conclusion on direction.** The recommended path is now **Path A — the DP-
+   feasibility *screening* contribution** (recoverable-gap oracle + FGW
+   misalignment control + concept probe + honest split), which cleanly
+   characterizes why post-processing reweighting fails on the canonical graph-DA
+   benchmark. **Downgraded:** the "DP structural adaptation without labels" idea —
+   the ACM/DBLP structural shift is *concept*-type, so unsupervised structural-
+   marginal alignment (DP-GAP) cannot recover it; only learned domain-invariant
+   representations can, i.e. **DP adversarial representation learning on the
+   private target graph** — a separate, harder project that abandons the post-
+   processing boundary. (A 2-hop summary would only *confirm* the finding while
+   being privacy-prohibitive to deploy — sensitivity ~`d_max` per hop — so it is
+   not worth pursuing.)
 4. Replicate synthetic with seeds + the capacity sweep (`hidden ∈ {4,8,16,32}`) to
    show the misspecification gap open and close.
 
